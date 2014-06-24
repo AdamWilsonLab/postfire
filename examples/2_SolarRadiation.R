@@ -20,11 +20,11 @@ execGRASS("r.slope.aspect",flags="overwrite",elevation="dem",slope="slope",aspec
 ### Radiation model
 
 ## build table of dates to process
-startdate=as.Date("2000-01-15")
-stopdate=as.Date("2000-12-31")
-tsteps=364
+startdate=as.Date("2001-01-15")
+stopdate=as.Date("2001-12-31")
+by=1
 
-dates=data.frame(date=(seq(startdate,stopdate,len=tsteps)))
+dates=data.frame(date=(seq(startdate,stopdate,by=by)))
 dates$doy=format(dates$date,"%j")
 dates$month=as.numeric(format(dates$date,"%m"))
 dates$season=ifelse(dates$month%in%c(12,1,2),"Summer",ifelse(dates$month%in%c(3,4,5),"Fall",ifelse(dates$month%in%c(6,7,8),"Winter","Spring")))
