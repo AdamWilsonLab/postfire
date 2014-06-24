@@ -43,7 +43,11 @@ foreach(i=1:nrow(dates)) %dopar% {
 foreach(m=unique(dates$month)) %dopar% {
     execGRASS("r.series",flags="overwrite",input=paste0("rad_tot.",dates$doy[dates$month==m],collapse=","),
           output=paste0("rad_month_",m),method="average")
+    execGRASS("r.colors",map=paste0("rad_month_",m),color="bgyr",flags="e")
     execGRASS("r.out.gdal",input=paste0("rad_month_",m),output=paste0(datadir,"/Clean/rad_",m,".tif"),
               createopt="COMPRESS=LZW",createopt="zlevel=9", type="UInt16")
 }
 
+
+## remove grass working folder
+system("rm -rf data/tmp/CapePoint")
