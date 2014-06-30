@@ -5,12 +5,12 @@ var drawmap=true;    // flag indicating whether to add the images to the map (be
 var exportfiles=true; // flag indicating whether to actually initiate the export, leve this false while testing
 
 var driveFolder="ee_ZA_output"; // name of personal google drive folder to export to (this must be unique)
-var run="1685968d7"; // any string to indicate a version.  I typically use a hash from my git repository
+var run="f125e298"; // any string to indicate a version.  I typically use a hash from my git repository
 var verbose=true;     // print various status messages to the console (on the right)
 
 // limit overall date range  (only dates in this range will be included)
-var datestart=new Date("2010-01-01");  // default time zone is UTC
-var datestop=new Date("2011-12-31");
+var datestart=new Date("1978-01-01");  // default time zone is UTC
+var datestop=new Date("2014-12-31");
 
 // Identify LANDSAT collections to include in processing
 
@@ -18,7 +18,8 @@ var datestop=new Date("2011-12-31");
 var prods =['LANDSAT/LT4_L1T_ANNUAL_GREENEST_TOA',
             'LANDSAT/LT5_L1T_ANNUAL_GREENEST_TOA',
             'LANDSAT/LE7_L1T_ANNUAL_GREENEST_TOA',
-            'LANDSAT/LC8_L1T_ANNUAL_GREENEST_TOA'] ;
+            'LANDSAT/LC8_L1T_ANNUAL_GREENEST_TOA'
+            ] ;
 
 
 // Get current date as string for file metadata
@@ -58,8 +59,11 @@ function fprocess(img) {
   return(img.select("greenness").multiply(100).mask(mask).int8());
 }
 
-// filter by time
-var tfilter=ee.Filter.calendarRange(yearstart,yearstop,'year');
+      // filter by time
+    var tfilter=ee.Filter.calendarRange(yearstart,yearstop,'year');
+
+
+var MAX = ee.call("Reducer.max");
 
 var NDVI_PALETTE = 
     'FFFFFF,CE7E45,DF923D,F1B555,FCD163,99B718,74A901,66A000,529400,' +
@@ -68,38 +72,57 @@ var NDVI_PALETTE =
 //////////////////////////////////////////////////////////
 // now get to work...
 
+//prods=prods[3];
 
 // loop over products (LANDSAT versions)
 for (var i=0; i<prods.length; i ++) {
-      print(prods[i]);
+//      print(prods[i]);
       var tname=prods[i].replace("LANDSAT/", ""); //extract make product name
-      
+
       // make an image collection, filter it to this year, and run fprocess()
-      var ndvi = ee.ImageCollection(prods[i]).filter(tfilter).map(fprocess);
+      var ndvi = ee.ImageCollection(prods[i]).filter(tfilter)
+
+      // get list of years in this product
+      years=ndvi.aggregate_array('system:index').getInfo()
+      print("Found "+years.length+" Years for "+tname);
 
       // if there is no images within the date range, skip it...
-      var ndvilen=ndvi.getInfo().features.length;
-      if((ndvilen)===0) continue;
-    
-      // loop over years to view/export each year for each product
-      for(var year = yearstart; year <= yearstop; year+=1) {
+      if(years.length===0) continue;
+      
+      // loop over years and combine to a single multiband image
+      var allndvi = ndvi.filter(ee.Filter.calendarRange(parseInt(years[0]),parseInt(years[0]),'year')).
+      map(fprocess).reduce(ee.Reducer.first()).select([0],[years[0]]);
+      
+//        print(ndvi.getInfo())   
+//        print(allndvi.getInfo())   
+        
+      for(var y = 1; y < years.length; y+=1) {
+      //    print(ndvi.getInfo().features[y].properties);
+          var tfilter2=ee.Filter.calendarRange(parseInt(years[y]),parseInt(years[y]),'year')
+          var tndvi=ndvi.filter(tfilter2).map(fprocess).reduce(ee.Reducer.first()).select([0],[years[y]])
+          print(tndvi.getInfo())
+          var allndvi = allndvi.addBands(tndvi);
 
           if(drawmap) {
-              addToMap(ndvi,{min:-25,max:100,palette:NDVI_PALETTE},tname+year,1);
+              addToMap(ndvi,{min:-25,max:100,palette:NDVI_PALETTE},tname+years[y],1);
           }
+      }
+ 
+      // now export the multi-band image
+//          print(allndvi.getInfo())
 
       if(exportfiles){
-
-          var filename=date+'_'+run+'_'+tname+'_'+year;
+          var yearnames=years.join("-") 
+          var filename=date+'_'+run+'_'+tname+'__'+yearnames;
+//          print(filename)
           if(verbose){  print('Exporting to: '+filename)} 
-           print(ndvi.getInfo());
-           exportImage(ndvi,filename,
+           exportImage(allndvi,filename,
                 {'maxPixels':1000000000,
                 'driveFolder':driveFolder,
-                'crs': 'EPSG:32634',
+                'crs': 'EPSG:32734',
                 'scale': 30,
                 'region': studyArea.geometry().coordinates().getInfo()[0]
                 });
   }  
   
-}}
+}
