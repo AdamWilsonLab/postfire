@@ -3,3 +3,8 @@
 .RData
 /data/tmp
 *.Rproj
+
+
+### Rmd related files
+cache
+examples/ExploreNDVI/figure

@@ -1,12 +1,6 @@
 ######################################################################
 ######################################################################
 ### NDVI stats - fit sine-exponential curve to ndvi data
-setwd("/media/Data/Work/Regional/CFR/BiomassAccumulation_500m/")
-
-load("data/ndvidata.Rdata")  #loads ndvi object (with ages and fire info) needed for fitcurve
-load("data/FireDataClean.Rdata")
-source("biomass_functions.R")
-library(multicore); library(reshape);library(heR.Misc) # for dapply
 
 
 
@@ -29,8 +23,6 @@ plot(ndvi~age,data=st,type="l",xlim=c(0,10))
 ### Explore the fitted breaks
 
 table(ndvi2$breakfire)
-
-
 
 
 
