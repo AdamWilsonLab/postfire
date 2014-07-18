@@ -1,0 +1,18 @@
+---
+title: "Climate Projections"
+author: "Adam M. Wilson"
+date: "July 18, 2014"
+output: html_document
+---
+
+Aquire downscaled climate projections from CSAG.
+
+
+```{r}
+```
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+```
+
