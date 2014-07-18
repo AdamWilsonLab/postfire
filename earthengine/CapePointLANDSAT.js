@@ -2,10 +2,10 @@
 
 //  Specify destination and run name
 var drawmap=true;    // flag indicating whether to add the images to the map (below) or not.
-var exportfiles=true; // flag indicating whether to actually initiate the export, leve this false while testing
+var exportfiles=false; // flag indicating whether to actually initiate the export, leve this false while testing
 
 var driveFolder="ee_ZA_output"; // name of personal google drive folder to export to (this must be unique)
-var run="f125e298"; // any string to indicate a version.  I typically use a hash from my git repository
+var run="54ef46e7ea"; // any string to indicate a version.  I typically use a hash from my git repository
 var verbose=true;     // print various status messages to the console (on the right)
 
 // limit overall date range  (only dates in this range will be included)
@@ -31,7 +31,7 @@ if(verbose) print(date);
 centerMap(18.4,-34.2,11);
 
 // Define a rectangular region to limit the analysis
-var studyArea = ee.Feature(ee.Geometry.Polygon([[18,-33.89], [18,-34.4], [18.5, -34.4],[18.5, -33.89], [18,-33.89]]));
+var studyArea = ee.Feature(ee.Geometry.Polygon([[18.3,-33.89], [18.3,-34.4], [18.5, -34.4],[18.5, -33.89], [18,-33.89]]));
 
 // Create a mask using SRTM elevation to mask out water
 var dem=ee.Image('CGIAR/SRTM90_V4');
@@ -56,7 +56,7 @@ if(verbose){print('Processing '+years)}
 
 // function to apply mask to all images in collection
 function fprocess(img) {
-  return(img.select("greenness").multiply(100).mask(mask).int8());
+  return(img.select("greenness").multiply(100).mask(mask).int16());
 }
 
       // filter by time
@@ -100,11 +100,11 @@ for (var i=0; i<prods.length; i ++) {
       //    print(ndvi.getInfo().features[y].properties);
           var tfilter2=ee.Filter.calendarRange(parseInt(years[y]),parseInt(years[y]),'year')
           var tndvi=ndvi.filter(tfilter2).map(fprocess).reduce(ee.Reducer.first()).select([0],[years[y]])
-          print(tndvi.getInfo())
+//          print(tndvi.getInfo())
           var allndvi = allndvi.addBands(tndvi);
 
           if(drawmap) {
-              addToMap(ndvi,{min:-25,max:100,palette:NDVI_PALETTE},tname+years[y],1);
+              addToMap(ndvi,{min:-25,max:100,palette:NDVI_PALETTE},tname+years[y],0);
           }
       }
  
