@@ -4,14 +4,13 @@ Fire and Climate Change in Fynbos
 A workshop in modeling post-fire recovery and ecosystem resilience in _fynbos_ systems
 
 # Repository Structure
-* workflows
-	* Scripts
-* functions
-	* Various functions that will be used by scripts.
-* data
-	* Datasets used in analyses
-* output
-	* Temporary output from analysis
+
+
+* Folders
+* **workflows:**       Scripts
+* **functions:**  Various functions that will be used by scripts.
+* **data:**  Datasets used in analyses
+* **output:** Temporary output from analysis
 
 # Pre-Workshop Preparation
 ## Software

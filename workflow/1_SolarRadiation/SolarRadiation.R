@@ -8,15 +8,17 @@
 #'      theme: cerulean
 #'   pdf_document:
 #'     toc: true
-#'     highlight: zenburn
-#' 
+#'     highlight: cerulean
+#'   md_document:
+#'     toc: true
+#'     highlight: cerulean
 #' ---
 #' 
 ## ----,setup,echo=F,cache=F,results='hide',message=FALSE,error=FALSE,warning=FALSE----
 ##  First some set up
 source("../1_setup.R")
-knitr_options(opts_chunk=list(cache=T,root.dir="../..", base.url = NULL))
-
+## set the root directory when running from knitr
+opts_knit$set(root.dir=getwd(),cache=T,base.url = NULL)
 
 #' 
 #' ![Radiation Budget](RadBudget.png)
@@ -154,7 +156,7 @@ stopdate=as.Date("2001-12-31")
 
 ## specify the frequency of the radiation calculation. 
 ## "day" is best (daily estimates averaged by month), "week" is good, but "month" is much faster
-by="week"
+by="month"
 
 ## build table of dates to process
 dates=data.frame(date=(seq(startdate,stopdate,by=by)))
@@ -188,24 +190,30 @@ foreach(i=1:nrow(dates)) %dopar% {
 #' 
 #' 
 #' # Summarize and export monthly maps
-#' Summarize the (daily?) radiation by month and write out a tiff to the data directory
+#' Summarize the (daily?) radiation by month
 ## ----,results='hide'-----------------------------------------------------
 if(!file.exists("data/rad")) dir.create("data/rad",recursive=T)
 foreach(m=unique(dates$month)) %dopar% {
   mo=sprintf("%02d",m) # add leading zeros, e.g. "1" to "01"
   execGRASS("r.series",flags="overwrite",input=paste0("rad_tot.",dates$doy[dates$month==m],collapse=","),
     output=paste0("rad_month_",mo),method="average")
-
-  ## add a color bar - not necessary, but nice for easy plotting
-    execGRASS("r.colors",map=paste0("rad_month_",mo),color="bgyr",flags="e")
-  
-  ## write the data out to a tif
-    execGRASS("r.out.gdal",input=paste0("rad_month_",mo),output=paste0("data/rad/rad_",mo,".tif"),
-              createopt="COMPRESS=LZW",createopt="zlevel=9",nodata=-999)
   return(mo)
   }
 
 
+#' 
+#' ## Export to geotifs
+#' Write out the summarized tiffs to the data directory
+## ----,results='hide'-----------------------------------------------------
+if(!file.exists("data/rad")) dir.create("data/rad",recursive=T)
+foreach(m=unique(dates$month)) %dopar% {
+  mo=sprintf("%02d",m) # add leading zeros, e.g. "1" to "01"
+  ## write the data out to a tif
+    execGRASS("r.out.gdal",input=paste0("rad_month_",mo),output=paste0("data/rad/rad_",mo,".tif"),
+              createopt="COMPRESS=LZW",createopt="zlevel=9",nodata=-999)
+}
+
+#' 
 #' 
 #' ## Visualize the results
 #' 
@@ -228,5 +236,5 @@ levelplot(rad,xaxt="n",yaxt="n",col.regions=rev(rainbow(20,end = .7)),scales=lis
 #' 
 ## ----,purl,echo=FALSE,results='hide',messages=F,error=FALSE,background=T----
 ## this chunk outputs a copy of this script converted to a 'normal' R file with comments
-purl("workflow/ExploreNDVI/ExploreNDVI.Rmd",documentation=2,output = "workflow/ExploreNDVI/ExploreNDVI.R", quiet = TRUE) 
+purl("workflow/SolarRadiation/SolarRadiation.Rmd",documentation=2,output="workflow/SolarRadiation/SolarRadiation.R", quiet = TRUE) 
 
