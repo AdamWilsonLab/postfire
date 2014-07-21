@@ -3,17 +3,28 @@
 ### Set some parameters for your machine
 
 ### Working directory (should be the root of the repository)
-setwd('~/repos/postfire')
+
+if (Sys.getenv("USER")=='jasper') setwd("/Users/jasper/Dropbox/Shared/Postfire_workshop/data") #use "USER" for Mac
+if (Sys.getenv("USER")=='adamw') setwd("~/repos/postfire") #use "USER" for Mac
+
+if (Sys.getenv("USERNAME")=='whoeveryouare') setwd ("C:/") #for PC
+
 
 ## path to shared folder that has the data
-datadir="/Users/adamw/GoogleDrive/Work/ZA_2014/workshop/Data/"
+## Never write anythiing to this folder!
+datadir="/Users/adamw/Dropbox/Postfire_workshop/Data/"
+
+## temporary working directory
+## this is where temporary files will be written
+tmpdir="data/tmp"
+if(!file.exists(tmpdir)) dir.create(tmpdir)
+
 
 ## Machine details
 ncores=3   # the number of cores you want to use for parallel processing
 
 ## bath to GRASS executables
 gisbase="/Applications/GRASS-6.4.app/Contents/MacOS"
-
 
 ########################################
 ### Load libraries
@@ -24,10 +35,11 @@ library(raster)
 library(rasterVis)
 library(rgdal)
 library(reshape2)
-
+library(sp)
 library(knitr);library(rmarkdown)
+
 ## load grass
-#library(spgrass6)
+library(spgrass6)
 
 ## get current working directory as an object to feed knitr
 cwd=getwd()

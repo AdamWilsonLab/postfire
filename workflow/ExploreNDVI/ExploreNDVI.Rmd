@@ -121,5 +121,5 @@ print(c(p1,p2,merge.legends=T))
 
 ```{r,purl,echo=FALSE,results='hide',messages=F,error=FALSE,background=T}
 ## this chunk outputs a copy of this script converted to a 'normal' R file with comments
-#purl("ExploreNDVI.Rmd",documentation=2,output = "ExploreNDVI.R", quiet = TRUE) 
+purl("workflow/ExploreNDVI/ExploreNDVI.Rmd",documentation=2,output = "workflow/ExploreNDVI/ExploreNDVI.R", quiet = TRUE) 
 ```

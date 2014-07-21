@@ -9,22 +9,16 @@
 ###Steps:
 ##############################################################################
 
-library(raster,sp)
-
-###Set working directory 
-if (Sys.getenv("USER")=='jasper') setwd("/Users/jasper/Dropbox/Shared/Postfire_workshop/data") #use "USER" for Mac
-if (Sys.getenv("USERNAME")=='whoeveryouare') setwd ("C:/") #for PC
-
 ###Get data
-ig=raster("clean/indexgrid_landsat_30m.grd") #get index grid - raster() reads grids
+ig=raster(paste0(datadir,"/clean/indexgrid_landsat_30m.grd")) #get index grid - raster() reads grids
 #ig; slotNames(ig)
 
-rv=readOGR(dsn="raw/VegLayers/Vegetation_Indigenous_Remnants", layer="Vegetation_Indigenous_Remnants") #remnant veg layer - readOGR() reads shapefiles
+rv=readOGR(dsn=paste0(datadir,"raw/VegLayers/Vegetation_Indigenous_Remnants"), layer="Vegetation_Indigenous_Remnants") #remnant veg layer - readOGR() reads shapefiles
 #rv; summary(rv$National_); summary(rv$Subtype); summary(rv$Community); levels(rv@data$National_)
 rv_meta=data.frame(1:length(levels(rv@data$National_)), levels(rv@data$National_)) #save VegType metadata
 colnames(rv_meta)=c("ID", "VegType") #rename columns
 
-fi=readOGR(dsn="raw/Fire", layer="CapePenFires") #Cape Peninsula fires history layers 1962-2007
+fi=readOGR(dsn=paste0(datadir,"raw/Fire"), layer="CapePenFires") #Cape Peninsula fires history layers 1962-2007
 #fi
 
 ###Set all CRS to that of the Landsat index grid (UTM 34S)
@@ -40,13 +34,13 @@ rvr=rasterize(rv, ig, field=c("National_"), fun="max") #get national veg type fo
 rvc=rasterize(rv, ig, field=c("National_"), fun="count") #count number of veg types for each cell (i.e. ID mixed cells)
 
 ###Extract fire history data and convert to a 30m raster
-fi$STARTDATE[which(fi$STARTDATE==196201001)]=19620101#fix an anomalous date...
+fi$STARTDATE[which(fi$STARTDATE==196201001)]=19620101      #fix an anomalous date...
 fic=rasterize(fi, ig, field=c("STARTDATE"), fun="count") #Raster showing numbers of fires
 
 ###Write out objects and dump from memory
-writeRaster(fic, "clean/fires_number_1962to2007_landsat_30m.grd")#, overwrite=TRUE)
-writeRaster(rvr, "clean/vegtypes_landsat_30m.grd")#, overwrite=TRUE)
-write.csv(rv_meta, "clean/vegtypecodes.csv", row.names=F)
+writeRaster(fic, "data/fires_number_1962to2007_landsat_30m.grd")#, overwrite=TRUE)
+writeRaster(rvr, "data/vegtypes_landsat_30m.grd")#, overwrite=TRUE)
+write.csv(rv_meta, "data/vegtypecodes.csv", row.names=F)
 rm(list=c("fic", "rvr", "rv", "rvc", "rv_meta"))
 
 ###Extract fire history data and convert to a 30m raster for each year   ### ?calc, ?stackApply, ?overlay
@@ -81,7 +75,7 @@ xr[,i]=(xr[,i-1]+1)*xt[,i] #set each cells age as the value in the last year + 1
 
 colnames(xr)=c("Index", 1964:2007)
 
-write.csv(xr, "clean/vegage.csv", row.names=F)
+write.csv(xr, "data/vegage.csv", row.names=F)
 
 ############
 

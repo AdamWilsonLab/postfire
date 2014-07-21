@@ -1,27 +1,32 @@
-#' NDVI Exploration
-#' ========================================================
+#' ---
+#' title: "NDVI Exploration"
+#' author: "Adam M. Wilson"
+#' #date: Today
+#' output:
+#'   html_document:
+#'     toc: true
+#'     theme: cerulean
+#'   pdf_document:
+#'     toc: true
+#'     highlight: zenburn
+#' 
+#' ---
+#' 
 #' 
 #' Let's explore the LANDSAT data.
 #' 
 ## ----,setup,echo=F,cache=F,results='hide',message=FALSE------------------
 ##  First some set up
 source("../1_setup.R")
-opts_chunk$set(cache=T,root.dir="../..",upload.fun = imgur_upload, base.url = NULL)
+knitr_options(opts_chunk=list(cache=T,root.dir="../..",upload.fun = imgur_upload, base.url = NULL))
 
-#' 
+
 #' 
 #' 
 #' # Data
 #' 
 #' ## Load LANDSAT data
 ## ------------------------------------------------------------------------
-# LANDSAT 4
-L4=stack(paste0(datadir,"ee_ZA_output/20140630_54ef46e7ea_LT4_L1T_ANNUAL_GREENEST_TOA__1982-1993-0000000000-0000000000.tif"))
-NAvalue(L4)=0
-gain(L4)=.01
-names(L4)=paste0("Y",1982:1993)
-L4=setZ(L4,1982:1993)
-
 # LANDSAT 5
 L5=stack(paste0(datadir,"ee_ZA_output/20140630_54ef46e7ea_LT5_L1T_ANNUAL_GREENEST_TOA__1984-2012-0000000000-0000000000.tif"))
 NAvalue(L5)=0
@@ -44,47 +49,51 @@ names(L8)=paste0("Y",2013:2014)
 L8=setZ(L8,2013:2014)
 
 #' 
-#' 
 #' Let's check out one of the LANDSAT objects.  Raster provides a summary by just typing the object's name:
 ## ------------------------------------------------------------------------
-L7
+L5
 
-#' 
 #' 
 #' 
 #' And a plot of the first year:
 ## ----fig.width=7, fig.height=6-------------------------------------------
-levelplot(L7[[1]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,margin=F)
+levelplot(L5[[1]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,margin=F)
 
-#' 
 #' 
 #' 
 #' That's strange, EarthEngine has added some columns to the tif to the West of the peninsula (see all that white space?).  Let's crop it.  First define an 'extent' in lat-lon coordinates and project them to 
 ## ------------------------------------------------------------------------
 peninsula=extent(250000,270210,6189390,6247260)
-L7=crop(L7,peninsula)
+L5=crop(L5,peninsula)
 
-#' 
 #' 
 #' Let's try the plot again:
 ## ----fig.width=7, fig.height=6-------------------------------------------
-levelplot(L7[[1]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,margin=F)
+levelplot(L5[[1]])#,col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,margin=F)
 
-#' 
-#' Much better.  Now let's look at the last few years.
+#' Much better.  Now let's look at a few different years.
 #' 
 ## ----fig.width=7, fig.height=6-------------------------------------------
-levelplot(L7[[12:16]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,layout=c(5,1))
+years=1998:2005
+yearind=which(getZ(L5)%in%years)
+levelplot(L5[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,layout=c(length(years),1))
 
-#' 
 #' 
 #' ## Change through time
 #' 
-#' It's still hard to see change, so let's pick a pixel and plot NDVI as a function of time.  But first we need to pick a pixel (or a few) to plot.  There are a few ways to do this.  First let's try extracting values from a single cell:
+#' It's still hard to see change while looking at the full peninsula, so let's:
+#' 
+#' 1. zoom in on a smaller region
+#' 2. pick a few pixels and plot NDVI as a function of time.  
+#' 
+#' ### Regional plot
+#' 
+#' 
+#' 
+#' But first we need to pick a pixel (or a few) to plot.  There are a few ways to do this.  First let's try extracting values from a single cell:
 ## ------------------------------------------------------------------------
 plot(c(L7[199165])~getZ(L7),type="l",ylab="NDVI",xlab="Year")
 
-#' 
 #' 
 #' Or, we can use the `click` function (in Raster) that allows you to pick points on the map.  First we need to plot the data using the plot() command.
 #' 
@@ -105,7 +114,6 @@ plot(c(L7[199165])~getZ(L7),type="l",ylab="NDVI",xlab="Year")
 ##   layer(panel.text(d$x,d$y,d$id,col="red",cex=2))
 ## print(c(p1,p2,merge.legends=T))
 
-#' 
 #' ### Exercise: 
 #' 1. Explore the map for areas you are familiar with. Do you see any patterns?
 #' 2. Can you identify any fires looking at the NDVI profiles?
@@ -113,6 +121,5 @@ plot(c(L7[199165])~getZ(L7),type="l",ylab="NDVI",xlab="Year")
 #' 
 ## ----,purl,echo=FALSE,results='hide',messages=F,error=FALSE,background=T----
 ## this chunk outputs a copy of this script converted to a 'normal' R file with comments
-purl("ExploreNDVI.Rmd",documentation=2,output = "ExploreNDVI.R", quiet = TRUE) 
+purl("workflow/ExploreNDVI/ExploreNDVI.Rmd",documentation=2,output = "workflow/ExploreNDVI/ExploreNDVI.R", quiet = TRUE) 
 
-#' 
