@@ -5,20 +5,20 @@ var drawmap=true;    // flag indicating whether to add the images to the map (be
 var exportfiles=true; // flag indicating whether to actually initiate the export, leve this false while testing
 
 var driveFolder="ee_ZA_output"; // name of personal google drive folder to export to (this must be unique)
-var run="d383c006c"; // any string to indicate a version.  I typically use a hash from my git repository
+var run="26dbab02"; // any string to indicate a version.  I typically use a hash from my git repository
 var verbose=true;     // print various status messages to the console (on the right)
 
 // limit overall date range  (only dates in this range will be included)
-var datestart=new Date("1986-01-01");  // default time zone is UTC
-var datestop=new Date("1987-12-31");
+var datestart=new Date("1978-01-01");  // default time zone is UTC
+var datestop=new Date("2014-12-31");
 
 // Identify LANDSAT collections to include in processing
 
 // create array of all products to process
-var prods =[//'LANDSAT/LT4_L1T_ANNUAL_GREENEST_TOA',
-            'LANDSAT/LT5_L1T_ANNUAL_GREENEST_TOA'//,
-            //'LANDSAT/LE7_L1T_ANNUAL_GREENEST_TOA',
-            //'LANDSAT/LC8_L1T_ANNUAL_GREENEST_TOA'
+var prods =['LANDSAT/LT4_L1T_ANNUAL_GREENEST_TOA',
+            'LANDSAT/LT5_L1T_ANNUAL_GREENEST_TOA',
+            'LANDSAT/LE7_L1T_ANNUAL_GREENEST_TOA',
+            'LANDSAT/LC8_L1T_ANNUAL_GREENEST_TOA'
             ] ;
 
 
@@ -109,7 +109,7 @@ for (var i=0; i<prods.length; i ++) {
  
 
       if(exportfiles){
-          var filename=date+'_'+run+'_'+tname+'__'+years[1]+"-"+years[years.length-1];
+          var filename=date+'_'+run+'_'+tname+'__'+years[0]+"-"+years[years.length-1];
 //          print(filename)
           if(verbose){  print('Exporting to: '+filename)} 
            exportImage(allndvi,filename,
