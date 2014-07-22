@@ -5,7 +5,7 @@ var drawmap=true;    // flag indicating whether to add the images to the map (be
 var exportfiles=true; // flag indicating whether to actually initiate the export, leve this false while testing
 
 var driveFolder="ee_ZA_output"; // name of personal google drive folder to export to (this must be unique)
-var run="1b93885d00"; // any string to indicate a version.  I typically use a hash from my git repository
+var run="d383c006c"; // any string to indicate a version.  I typically use a hash from my git repository
 var verbose=true;     // print various status messages to the console (on the right)
 
 // limit overall date range  (only dates in this range will be included)
@@ -119,7 +119,7 @@ for (var i=0; i<prods.length; i ++) {
 //                'scale': 30,
 //                'region': studyArea.geometry().coordinates().getInfo()[0]
                   'crs': 'EPSG:32734',
-                  'crs_transform': '[30,0,249990,0,-30,6189390]',
+                  'crs_transform': '[30,0,249990,0,-30,6247260]',
                   'dimensions': '[674,1929]'
                 });
   }  
