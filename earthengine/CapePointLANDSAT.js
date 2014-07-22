@@ -10,15 +10,15 @@ var verbose=true;     // print various status messages to the console (on the ri
 
 // limit overall date range  (only dates in this range will be included)
 var datestart=new Date("1986-01-01");  // default time zone is UTC
-var datestop=new Date("2014-12-31");
+var datestop=new Date("1987-12-31");
 
 // Identify LANDSAT collections to include in processing
 
 // create array of all products to process
 var prods =[//'LANDSAT/LT4_L1T_ANNUAL_GREENEST_TOA',
-            //'LANDSAT/LT5_L1T_ANNUAL_GREENEST_TOA',
-            'LANDSAT/LE7_L1T_ANNUAL_GREENEST_TOA',
-            'LANDSAT/LC8_L1T_ANNUAL_GREENEST_TOA'
+            'LANDSAT/LT5_L1T_ANNUAL_GREENEST_TOA'//,
+            //'LANDSAT/LE7_L1T_ANNUAL_GREENEST_TOA',
+            //'LANDSAT/LC8_L1T_ANNUAL_GREENEST_TOA'
             ] ;
 
 
@@ -60,8 +60,8 @@ function fprocess(img) {
   return(img.select("greenness").add(2).multiply(1000).toInt16().where(mask.eq(0),0))
 }
 
-// filter by time
-var tfilter=ee.Filter.calendarRange(yearstart,yearstop,'year');
+      // filter by time
+    var tfilter=ee.Filter.calendarRange(yearstart,yearstop,'year');
 
 
 var NDVI_PALETTE = 
@@ -71,11 +71,11 @@ var NDVI_PALETTE =
 //////////////////////////////////////////////////////////
 // now get to work...
 
-//var i=0
+//prods=prods[3];
 
 // loop over products (LANDSAT versions)
 for (var i=0; i<prods.length; i ++) {
-      print(prods[i]);
+//      print(prods[i]);
       var tname=prods[i].replace("LANDSAT/", ""); //extract make product name
 
       // make an image collection, filter it to this year, and run fprocess()
@@ -86,7 +86,7 @@ for (var i=0; i<prods.length; i ++) {
       print("Found "+years.length+" Years for "+tname);
 
       // if there is no images within the date range, skip it...
-//      if(years.length===0) continue;
+      if(years.length===0) continue;
       
       // loop over years and combine to a single multiband image
       var allndvi = ndvi.filter(ee.Filter.calendarRange(parseInt(years[0]),parseInt(years[0]),'year')).
@@ -107,8 +107,6 @@ for (var i=0; i<prods.length; i ++) {
           }
       }
  
-      // now export the multi-band image
-//          print(allndvi.getInfo())
 
       if(exportfiles){
           var filename=date+'_'+run+'_'+tname+'__'+years[1]+"-"+years[years.length-1];
@@ -117,10 +115,10 @@ for (var i=0; i<prods.length; i ++) {
            exportImage(allndvi,filename,
                 {'maxPixels':1000000000,
                 'driveFolder':driveFolder,
-//               'crs': 'EPSG:32734',
+//                'crs': 'EPSG:32734',
 //                'scale': 30,
 //                'region': studyArea.geometry().coordinates().getInfo()[0]
-                  'crs': 'PROJ4:+proj=utm +zone=34 +south +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0',
+                  'crs': 'EPSG:32734',
                   'crs_transform': '[30,0,249990,0,-30,6189390]',
                   'dimensions': '[674,1929]'
                 });
