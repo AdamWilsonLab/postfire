@@ -28,11 +28,11 @@ l7=crop(l7, peninsula)
 l8=crop(l8, peninsula)
 
 ###Get covariates
-index=raster("clean/indexgrid_landsat_30m.grd")
-veg=raster("clean/vegtypes_landsat_30m.grd")
-cover=raster("clean/landcover2009_landsat_30m.grd")
-dem=raster("clean/dem_landsat_30m.grd")
-age=read.csv("clean/vegage.csv")
+index=raster(paste0(datadir,"clean/indexgrid_landsat_30m.grd"))
+veg=raster(paste0(datadir,"clean/vegtypes_landsat_30m.grd"))
+cover=raster(paste0(datadir,"clean/landcover2009_landsat_30m.grd"))
+dem=raster(paste0(datadir,"clean/dem_landsat_30m.grd"))
+age=read.csv(paste0(datadir,"clean/vegage.csv"))
 
 ###Make all data one big dataframe
 dat=cbind(as.data.frame(index), as.data.frame(veg), as.data.frame(cover), as.data.frame(dem), age, as.data.frame(l4), as.data.frame(l5), as.data.frame(l7), as.data.frame(l8))

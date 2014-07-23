@@ -1,0 +1,166 @@
+---
+title: "DataPrep"
+author: "Jasper Slingsby & Adam M. Wilson"
+date: "July 22, 2014"
+output:
+  html_document:
+    toc: true
+    theme: cerulean
+    keep_md: true  
+---
+
+```{r,setup,echo=F,cache=F,results='hide',message=FALSE}
+##  First some set up
+source("../1_setup.R")
+opts_knit$set(root.dir=getwd(),cache=T,base.url = NULL)
+
+```
+
+This script assembles various environmental layers into a common 30m grid for the Cape Peninsula.  It also calculates veg age based on the fire data.
+
+## Index raster
+Create a raster of an index grid (`ig`) to spatially connect all the datasets.
+```{r index}
+ig=raster(paste0(datadir,"clean/indexgrid_landsat_30m.grd")) 
+```
+
+## Vegetation 
+
+```{r veg}
+rv=readOGR(dsn=paste0(datadir,"raw/VegLayers/Vegetation_Indigenous_Remnants"), layer="Vegetation_Indigenous_Remnants") #remnant veg layer - readOGR() reads shapefiles
+#rv; summary(rv$National_); summary(rv$Subtype); summary(rv$Community); levels(rv@data$National_)
+rv_meta=data.frame(1:length(levels(rv@data$National_)), levels(rv@data$National_)) #save VegType metadata
+colnames(rv_meta)=c("ID", "VegType") #rename columns
+write.csv(rv_meta, paste0(datadir,"clean/vegtypecodes.csv", row.names=F))
+
+# reproject to the CRS of the Landsat index grid (UTM 34S)
+rv=spTransform(rv,CRS(proj4string(ig)))
+
+```
+
+Extract the national veg types from the veg layer into a 30m raster based on the index grid
+```{r veg2}
+rvrfile="data/vegtypes_landsat_30m.tif"
+if(!file.exists(rvrfile))
+  rvr=rasterize(rv, ig, field=c("National_"), fun="max",file=rvrfile) #get national veg type for each cell
+rvr=raster(rvrfile)
+plot(rvr)
+```
+
+Count number of veg types for each cell (i.e. ID mixed cells)
+```{r vegc}
+rvcfile="data/count_vegtypes_landsat_30m.tif"
+if(!file.exists(rvcfile))
+  rvc=rasterize(rv, ig, field=c("National_"), fun="count",file=rvcfile) 
+rvc=raster(rvcfile)
+table(values(rvc))
+```
+
+## Fire data
+```{r fire1}
+fi=readOGR(dsn=paste0(datadir,"raw/Fire"), layer="CapePenFires") #Cape Peninsula fires history layers 1962-2007
+fi=spTransform(fi,CRS(proj4string(ig)))
+
+### Extract fire history data and convert to a 30m raster
+fi$STARTDATE[which(fi$STARTDATE==196201001)]=19620101#fix an anomalous date...
+
+#Raster showing total numbers of fires in each grid cell
+## note the if(!file.exists)) first checks if the file already exists so you don't rerun this everytime you run the script.
+ficfile="data/fires_number_1962to2007_landsat_30m.tif"
+if(!file.exists(ficfile))
+    fic=rasterize(fi, ig, field=c("STARTDATE"), fun="count",file=ficfile) 
+
+fic=raster(ficfile)
+```
+
+
+
+### Rasterize fire data into annual fire maps 
+```{r fire2}
+years=sort(unique(fi$YEAR)) #get the unique list of years in which fires occurred
+years=1962:2014
+#years=years[years>1981] #trim to 1982 onwards (our earliest reliable Landsat data)
+
+## first check if file already exists, if not, run this
+rfifile="data/fires_annual_landsat_30m.tif"
+if(!file.exists(rfifile)) {
+rfi=foreach(y=years,.combine=stack,.packages="raster") %dopar% {
+ #loop through years making a raster of burnt cells (1/0) for each
+  ## check if there were any fires that year, if not, return zeros
+  if(sum(fi$YEAR==y)==0) 
+      td= raster(extent(ig),res=res(ig),vals=0)
+  ## if there is >0 fires, then rasterize it to the grid
+  if(sum(fi$YEAR==y)>0) 
+      td=rasterize(fi[which(fi$YEAR==y),],ig, field="YEAR", fun="count", background=0) 
+  ## return the individual raster
+  return(td)
+  }
+writeRaster(rfi,file=rfifile)#,options=c("COMPRESS=LZW","PREDICTOR=2"))
+}
+
+rfi=stack(rfifile)
+## add year as name
+names(rfi)=paste0("Fire_",years)
+
+```
+
+```{r fireplot}
+levelplot(rfi[[30:40]],scales=list(draw=F),at=c(0,0.5,1),col.regions=c("transparent","red"),auto.key=F)
+```
+
+
+### Calculate veg age from fire history
+Now we have an object `rfi` (rasterized fires) with one band/layer for each year with 0s and 1s indicating whether that pixel burned in that year.  We can use that to calculate the time since fire by setting the year that burned to 0 and adding 1 for each subsequent year until the next fire.  
+
+First let's look at one pixel's data:
+
+```{r table1,results='asis'}
+x=as.vector(rfi[551072])
+x2=rbind(fire=x)
+colnames(x2)=years
+kable(x2)
+```
+
+
+So we need a function that finds the fires and counts up each year.  We'll put in years before the first fire as negatives so we can identify them later.
+
+```{r fage}
+fage=function(x){
+  ## if there are no fires, return all negative numbers
+  if(sum(x)==0){return(-1:(-length(x)))}
+  if(sum(x)>0){
+    ## create empty vector of veg ages
+    tage=rep(NA,length(years))
+    ## years with fire
+    fids=which(x>0)  
+    tage[fids]=0
+    ## fill in years before first fire
+    tage[1:fids[1]]=-1:(-fids[1])
+    ## Now loop through years and count up unless there was a fire
+    for(i in (fids[1]+1):length(years))
+    tage[i]=ifelse((i-1)%in%fids,0,tage[i-1]+1)
+return(tage)
+}}
+```
+Now let's try that: 
+```{r table2,results='asis'}
+x=as.vector(rfi[551072])
+x2=rbind(fire=x,age=fage(x))
+colnames(x2)=years
+kable(x2)
+```
+
+Now use `calc` to apply that to the full stack.
+```{r fireages}
+agefile="data/ages_annual_landsat_30m.tif"
+if(!file.exists(agefile))
+    age=calc(rfi,fage,file=agefile,progress='text',dataType="INT1S")
+age=stack(agefile)
+names(age)=paste0("age_",years)
+```
+
+```{r fireanim}
+levelplot(age[[30:40]],at=seq(0,53,len=100),col.regions=rainbow(100,start=.3),scales=list(draw=F),auto.key=F,
+          main="Veld age through time")
+```
+

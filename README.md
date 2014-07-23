@@ -40,7 +40,8 @@ Please attempt to have the following software installed and functioning prior to
 	*  Git version control
 *   Data Preparation
 	*  Preparing the data for analysis, calculation of covariates (solar radiation, etc.)
-	*  Introduction to GRASS GIS      
+	*  Introduction to GRASS GIS    
+	*  Introduction to foreach parallel processing  
 * Exploratory Data Analysis (EDA)
 	* 	
 	
