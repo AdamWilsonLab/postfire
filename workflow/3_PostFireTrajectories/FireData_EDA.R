@@ -1,30 +1,3 @@
-######################################################################
-######################################################################
-### NDVI stats - fit sine-exponential curve to ndvi data
-
-
-
-
-## a few random plots
-ndvi2=do.call(rbind,ndvi)
-#ndvi_cn=ndvi2[ndvi2$source=="CN",]
-#ndvi_mod=ndvi2[ndvi2$source=="MCD45A1",]
-
-xyplot(evi~age|id,type="l",data=ndvi2[ndvi2$id%in%sample(ndvi2$id,1000),],layout=c(2,1))
-
-minage=as.numeric(names(which(tapply(ndvi2$age,ndvi2$id,min,na.rm=T)<1)))
-xyplot(evi~age,groups=id,type="l",data=ndvi2[ndvi2$id%in%minage[1:1000],])
-
-
-st=data.frame(ndvi=tapply(ndvi2$ndvi,round(ndvi2$age,1),quantile,c(0.025,.25,.5,.75,.975),na.rm=T)); st$age=as.numeric(rownames(st))
-plot(ndvi~age,data=st,type="l",xlim=c(0,10))
-
-#############################
-### Explore the fitted breaks
-
-table(ndvi2$breakfire)
-
-
 
 
 

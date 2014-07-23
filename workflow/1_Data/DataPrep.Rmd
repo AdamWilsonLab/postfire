@@ -30,7 +30,7 @@ ig=raster(paste0(datadir,"clean/indexgrid_landsat_30m.grd"))
 rv=readOGR(dsn=paste0(datadir,"raw/VegLayers/Vegetation_Indigenous_Remnants"), layer="Vegetation_Indigenous_Remnants") #remnant veg layer - readOGR() reads shapefiles
 #rv; summary(rv$National_); summary(rv$Subtype); summary(rv$Community); levels(rv@data$National_)
 rv_meta=data.frame(1:length(levels(rv@data$National_)), levels(rv@data$National_)) #save VegType metadata
-colnames(rv_meta)=c("ID", "VegType") #rename columns
+colnames(rv_meta)=c("ID", "code") #rename columns
 write.csv(rv_meta, paste0(datadir,"clean/vegtypecodes.csv", row.names=F))
 
 # reproject to the CRS of the Landsat index grid (UTM 34S)
@@ -39,12 +39,16 @@ rv=spTransform(rv,CRS(proj4string(ig)))
 ```
 
 Extract the national veg types from the veg layer into a 30m raster based on the index grid
-```{r veg2}
+```{r veg2,fig.cap="Land cover types aggregated to the 30m grid"}
 rvrfile="data/vegtypes_landsat_30m.tif"
 if(!file.exists(rvrfile))
   rvr=rasterize(rv, ig, field=c("National_"), fun="max",file=rvrfile) #get national veg type for each cell
+## read it back in and 'factorize' it
 rvr=raster(rvrfile)
-plot(rvr)
+rvr=as.factor(rvr)
+levels(rvr)=rv_meta
+levelplot(rvr,col.regions=rainbow(nrow(rv_meta)))
+
 ```
 
 Count number of veg types for each cell (i.e. ID mixed cells)
@@ -53,6 +57,11 @@ rvcfile="data/count_vegtypes_landsat_30m.tif"
 if(!file.exists(rvcfile))
   rvc=rasterize(rv, ig, field=c("National_"), fun="count",file=rvcfile) 
 rvc=raster(rvcfile)
+```
+
+Are there any mixed cells?
+
+```{r}
 table(values(rvc))
 ```
 
@@ -163,4 +172,158 @@ names(age)=paste0("age_",years)
 levelplot(age[[30:40]],at=seq(0,53,len=100),col.regions=rainbow(100,start=.3),scales=list(draw=F),auto.key=F,
           main="Veld age through time")
 ```
+
+
+## NDVI Compositing
+
+```{r}
+getNDVI=function(file,years,prefix){
+  ndvi=stack(paste0(datadir,"raw/NDVI/",file))
+  NAvalue(ndvi)=0
+offs(ndvi)=-2
+gain(ndvi)=.001
+names(ndvi)=paste0(prefix,years)
+ndvi=setZ(ndvi,years)
+}
+```
+
+Now use the function to read in the data and add the relevant metadata.
+```{r}
+l4=getNDVI(file="20140722_26dbab02_LT4_L1T_ANNUAL_GREENEST_TOA__1982-1993-0000000000-0000000000.tif",
+           years=1982:1993,prefix="L4_")
+l5=getNDVI(file="20140722_26dbab02_LT5_L1T_ANNUAL_GREENEST_TOA__1984-2012-0000000000-0000000000.tif",
+           years=1984:2012,prefix="L5_")
+l7=getNDVI(file="20140722_26dbab02_LE7_L1T_ANNUAL_GREENEST_TOA__1999-2014-0000000000-0000000000.tif",
+           years=1999:2014,prefix="L7_")
+l8=getNDVI(file="20140722_26dbab02_LC8_L1T_ANNUAL_GREENEST_TOA__2013-2014-0000000000-0000000000.tif",
+           years=2013:2014,prefix="L8_")
+
+```
+
+Let's check out one of the LANDSAT objects.  Raster provides a summary by just typing the object's name:
+```{r}
+l7
+```
+
+And a plot of a few different years:
+
+```{r fig.width=7, fig.height=6}
+tyears=2002:2005
+yearind=which(getZ(l5)%in%tyears)
+levelplot(l5[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,layout=c(length(years),1),scales=list(draw=F))
+```
+
+
+There is some temporal overlap between sensors, let's look at that:
+```{r,fig.cap="Timeline of LANDSAT data by sensor",fig.height=3}
+tl=melt(list(l4=getZ(l4),l5=getZ(l5),l7=getZ(l7),l8=getZ(l8)))
+xyplot(as.factor(L1)~value,data=tl,type="l",groups=as.factor(L1),asp=.15,lwd=5,ylab="LANDSAT Satellite",xlab="Year")
+```
+
+There are several ways these data could be combined.  The individual scenes could be assessed for quality (cloud contamination, etc.), sensors could be weighted by sensor quality (newer=better?).  Today, we'll simply take the mean of available data for each year.  What are the limitations of this approach? 
+
+```{r fndvi}
+nyears=1984:2014
+
+ndvifile="data/ndvi_annual_landsat_30m.tif"
+if(!file.exists(ndvifile)){
+
+  ndvi=foreach(y=nyears,.combine=stack,.packages="raster") %dopar% {
+    # find which LANDSATs have data for the desired year
+    w1=lapply(
+      list(l4=getZ(l4),l5=getZ(l5),l7=getZ(l7),l8=getZ(l8)),
+      function(x) ifelse(y%in%x,which(y==x),NA))
+    # drop LANDSATs with no data for this year
+    w2=w1[!is.na(w1)]
+    # make a stack with the desired year for all sensors that have data
+    tndvi=mean(stack(lapply(1:length(w2),function(i) {
+        print(i)
+      td=get(names(w2[i]))
+      return(td[[w2[i]]])
+    })),na.rm=T)
+    return(tndvi)
+    }
+  writeRaster(ndvi,file=ndvifile,overwrite=T)
+}
+
+ndvi=stack(ndvifile)
+names(ndvi)=paste0("ndvi_",nyears)
+ndvi=setZ(ndvi,nyears)
+```
+
+
+```{r ndviplot,fig.cap="Merged annual maximum LANDSAT NDVI"}
+levelplot(ndvi,col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,margin=F,scales=list(draw=F),names.attr=getZ(ndvi))
+```
+
+# Data Compilation
+
+## Select domain of interest
+Here we will define the subset of cells that we will explore further.  You can fiddle with these settings to include fewer (or more) cells.  If your computer is slow, you may want to subset this further.
+
+```{r sdat,results='asis'}
+
+## load data for masking
+cover=raster(paste0(datadir,"clean/landcover2009_landsat_30m.gri"))
+
+maskfile="data/mask_landsat_30m.tif"
+if(!file.exists(maskfile)){
+    mask=overlay(cover,fic,fun=function(x,y) x==1&y>0,filename=maskfile)
+}
+mask=raster(maskfile)
+
+## load additional covariate data
+tmax=raster(paste0(datadir,"clean/Tmax_jan_mean.gri"))
+tmin=raster(paste0(datadir,"clean/Tmin_jul_mean.gri"))
+tpi=raster(paste0(datadir,"clean/tpi500.gri"))
+dem=raster(paste0(datadir,"clean/dem_landsat_30m.gri"))
+
+### Make a dataframe of all spatial data
+## Beware, this approach will only work if your data are all in identical projection/grid/etc.
+maskids=which(values(mask)==1)
+              
+sdat=data.frame(
+  id=extract(ig, maskids),
+  coordinates(ig)[maskids,],
+  veg=extract(rvr, maskids),
+  cover=extract(cover, maskids),
+  tmax=extract(tmax, maskids),
+  tmin=extract(tmin, maskids),
+  dem=extract(dem, maskids),
+  tpi=extract(tpi, maskids)
+)
+
+kable(head(sdat))
+```
+
+
+## Temporally varying data
+```{r tdat,results='asis'}
+## subset age to years with ndvi data
+age=age[[which(getZ(age)%in%getZ(ndvi))]]
+
+tdat=data.frame(
+  id=extract(ig, maskids),
+  extract(age, maskids),
+  extract(ndvi,maskids)
+  )
+kable(tdat[1:10,1:10])
+```
+
+### Reshape temporal data
+```{r tdatl}
+tdatl=melt(tdat,id.var="id")
+tdatln=cbind.data.frame(lab=levels(tdatl$variable),do.call(rbind,strsplit(as.character(levels(tdatl$variable)),"_")))
+tdatl[,c("type","year")]=tdatln[match(tdatl$variable,tdatln$lab),2:3]
+## sort it (for convenience)
+tdatl=tdatl[order(tdatl$id,tdatl$year),c("id","year","type","value")]
+
+kable(head(tdatl,row.names=F))
+```
+
+Save it as an R data object for later use.
+```{r save}
+save(sdat,tdat,tdatl,file="data/modeldata.Rdata")
+```
+
 

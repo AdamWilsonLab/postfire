@@ -1,0 +1,263 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<style>
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+blockquote {
+    margin: 0;
+    padding: 0;
+}
+body {
+    font-family: "Helvetica Neue", Helvetica, "Hiragino Sans GB", Arial, sans-serif;
+    font-size: 13px;
+    line-height: 18px;
+    color: #737373;
+    background-color: white;
+    margin: 10px 13px 10px 13px;
+}
+table {
+	margin: 10px 0 15px 0;
+	border-collapse: collapse;
+}
+td,th {	
+	border: 1px solid #ddd;
+	padding: 3px 10px;
+}
+th {
+	padding: 5px 10px;	
+}
+
+a {
+    color: #0069d6;
+}
+a:hover {
+    color: #0050a3;
+    text-decoration: none;
+}
+a img {
+    border: none;
+}
+p {
+    margin-bottom: 9px;
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    color: #404040;
+    line-height: 36px;
+}
+h1 {
+    margin-bottom: 18px;
+    font-size: 30px;
+}
+h2 {
+    font-size: 24px;
+}
+h3 {
+    font-size: 18px;
+}
+h4 {
+    font-size: 16px;
+}
+h5 {
+    font-size: 14px;
+}
+h6 {
+    font-size: 13px;
+}
+hr {
+    margin: 0 0 19px;
+    border: 0;
+    border-bottom: 1px solid #ccc;
+}
+blockquote {
+    padding: 13px 13px 21px 15px;
+    margin-bottom: 18px;
+    font-family:georgia,serif;
+    font-style: italic;
+}
+blockquote:before {
+    content:"\201C";
+    font-size:40px;
+    margin-left:-10px;
+    font-family:georgia,serif;
+    color:#eee;
+}
+blockquote p {
+    font-size: 14px;
+    font-weight: 300;
+    line-height: 18px;
+    margin-bottom: 0;
+    font-style: italic;
+}
+code, pre {
+    font-family: Monaco, Andale Mono, Courier New, monospace;
+}
+code {
+    background-color: #fee9cc;
+    color: rgba(0, 0, 0, 0.75);
+    padding: 1px 3px;
+    font-size: 12px;
+    -webkit-border-radius: 3px;
+    -moz-border-radius: 3px;
+    border-radius: 3px;
+}
+pre {
+    display: block;
+    padding: 14px;
+    margin: 0 0 18px;
+    line-height: 16px;
+    font-size: 11px;
+    border: 1px solid #d9d9d9;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+pre code {
+    background-color: #fff;
+    color:#737373;
+    font-size: 11px;
+    padding: 0;
+}
+sup {
+    font-size: 0.83em;
+    vertical-align: super;
+    line-height: 0;
+}
+* {
+	-webkit-print-color-adjust: exact;
+}
+@media screen and (min-width: 914px) {
+    body {
+        width: 854px;
+        margin:10px auto;
+    }
+}
+@media print {
+	body,code,pre code,h1,h2,h3,h4,h5,h6 {
+		color: black;
+	}
+	table, pre {
+		page-break-inside: avoid;
+	}
+}
+</style>
+<title>Repository Structure</title>
+
+</head>
+<body>
+<h1>Fire and Climate Change in Fynbos</h1>
+
+<p>A workshop in modeling post-fire recovery and ecosystem resilience in <em>fynbos</em> systems.</p>
+
+<p>The workshop will consist primarily of stepping through example code that explores the use of LANDSAT NDVI data in modeling post-fire recovery of <em>fynbos</em>.  The materials for the course are all available in a Git Repository at <a href="https://github.com/adammwilson/postfire">https://github.com/adammwilson/postfire</a>.</p>
+
+<h1>Repository Structure</h1>
+
+<p>The repository is structured as follows:</p>
+
+<ul>
+<li>Folders</li>
+<li><strong>workflows:</strong>       Scripts</li>
+<li><strong>functions:</strong>  Various functions that will be used by scripts.</li>
+<li><strong>data:</strong>  Datasets used in analyses</li>
+<li><strong>output:</strong> Temporary output from analysis</li>
+</ul>
+
+
+<h1>Pre-Workshop Preparation</h1>
+
+<h2>Software</h2>
+
+<p>Please attempt to have the following software installed and functioning prior to the workshop:</p>
+
+<ul>
+<li><a href="http://www.rstudio.com/">RStudio</a>
+This includes an installation of R.  Use of RStudio is not vital for the course, participants could use the  GUI included with R or another interface (e.g. <a href="http://ess.r-project.org/">EMACS-ESS</a> if desired.</li>
+<li>R packages.  These are installed either with a package manager or via the command line (e.g. <code>install.packages(raster)</code>).  See for <a href="workflow/1_setup.R">here for a list of packages</a> that we'll be using.</li>
+<li><a href="http://grass.osgeo.org/download/">GRASS</a>.  We'll be giving a brief introduction to this full featured open-source GIS in one section of the workshop.  It isn't vital that you have it installed , but if you do, you'll be able to follow along.  If you do, please also install the <a href="http://cran.r-project.org/web/packages/spgrass6/index.html">spGRASS6</a> R library.</li>
+</ul>
+
+
+<h1>Workshop objectives</h1>
+
+<ol>
+<li>Introduce participants to methods for quantifying post-fire recovery using satellite data</li>
+<li>Provide a worked example of using LANDSAT data and covariates to quantify variability in post-fire recovery over the Cape Peninsula of South Africa</li>
+</ol>
+
+
+<h2>Day 1</h2>
+
+<h3>Session 1 (9am -- 12pm)</h3>
+
+<ul>
+<li>Workshop overview</li>
+<li>Project Organization
+
+<ul>
+<li> RStudio</li>
+<li> Git version control</li>
+</ul>
+</li>
+<li>Data Preparation
+
+<ul>
+<li>Preparing the data for analysis, calculation of covariates (solar radiation, etc.)</li>
+<li><a href="workflow/1_SolarRadiation/SolarRadiation.Rmd">Solar Radiation: and introduction to GRASS GIS</a></li>
+<li>Introduction to foreach parallel processing</li>
+</ul>
+</li>
+<li>Exploratory Data Analysis (EDA)
+
+<ul>
+<li></li>
+</ul>
+</li>
+</ul>
+
+
+<h3>Session 2 (1pm -- 4pm)</h3>
+
+<ul>
+<li>Data processing
+
+<ul>
+<li>Assembling covariates</li>
+<li>Generating the model data frame</li>
+</ul>
+</li>
+<li>Exploration of post-fire curves</li>
+</ul>
+
+
+<h2>Day 2</h2>
+
+<h3>Session 1 (9am -- 12pm)</h3>
+
+<h3>Session 2 (1pm -- 4pm)</h3>
+
+<ul>
+<li>Introduction to bayesian model fitting
+
+<ul>
+<li>Hierarchical models</li>
+<li>BUGS language</li>
+</ul>
+</li>
+<li>Modeling Post-fire trajectories</li>
+<li>Linking NDVI to biomass/carbon</li>
+</ul>
+
+</body>
+</html>

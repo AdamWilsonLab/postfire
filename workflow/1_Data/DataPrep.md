@@ -211,3 +211,79 @@ levelplot(age[[30:40]],at=seq(0,53,len=100),col.regions=rainbow(100,start=.3),sc
 
 ![plot of chunk fireanim](./DataPrep_files/figure-html/fireanim.png) 
 
+
+## NDVI Compositing
+
+
+```r
+getNDVI=function(file,years,prefix){
+  ndvi=stack(paste0(datadir,"raw/NDVI/",file))
+  NAvalue(ndvi)=0
+offs(ndvi)=-2
+gain(ndvi)=.001
+names(ndvi)=paste0(prefix,years)
+ndvi=setZ(ndvi,years)
+}
+```
+
+Now use the function to read in the data and add the relevant metadata.
+
+```r
+l4=getNDVI(file="20140722_26dbab02_LT4_L1T_ANNUAL_GREENEST_TOA__1982-1993-0000000000-0000000000.tif",
+           years=1982:1993,prefix="L4_")
+l5=getNDVI(file="20140722_26dbab02_LT5_L1T_ANNUAL_GREENEST_TOA__1984-2012-0000000000-0000000000.tif",
+           years=1984:2012,prefix="L5_")
+l7=getNDVI(file="20140722_26dbab02_LE7_L1T_ANNUAL_GREENEST_TOA__1999-2014-0000000000-0000000000.tif",
+           years=1999:2014,prefix="L7_")
+l8=getNDVI(file="20140722_26dbab02_LC8_L1T_ANNUAL_GREENEST_TOA__2013-2014-0000000000-0000000000.tif",
+           years=2013:2014,prefix="L8_")
+```
+
+So there is some overlap between sensors, let's look at that:
+
+```r
+tl=melt(list(l4=getZ(l4),l5=getZ(l5),l7=getZ(l7),l8=getZ(l8)))
+xyplot(as.factor(L1)~value,data=tl,type="l",groups=as.factor(L1),asp=.15,lwd=5,ylab="LANDSAT Satellite",xlab="Year")
+```
+
+![Timeline of LANDSAT data by sensor](./DataPrep_files/figure-html/unnamed-chunk-3.png) 
+
+There are several ways these data could be combined.  The individual scenes could be assessed for quality (cloud contamination, etc.), sensors could be weighted by sensor quality (newer=better?).  Today, we'll simply take the mean of available data for each year.  What are the limitations of this approach? 
+
+
+```r
+nyears=1984:2014
+
+ndvifile="data/ndvi_annual_landsat_30m.tif"
+if(!file.exists(ndvifile)){
+
+  ndvi=foreach(y=nyears,.combine=stack,.packages="raster") %dopar% {
+    # find which LANDSATs have data for the desired year
+    w1=lapply(
+      list(l4=getZ(l4),l5=getZ(l5),l7=getZ(l7),l8=getZ(l8)),
+      function(x) ifelse(y%in%x,which(y==x),NA))
+    # drop LANDSATs with no data for this year
+    w2=w1[!is.na(w1)]
+    # make a stack with the desired year for all sensors that have data
+    tndvi=mean(stack(lapply(1:length(w2),function(i) {
+        print(i)
+      td=get(names(w2[i]))
+      return(td[[w2[i]]])
+    })),na.rm=T)
+    return(tndvi)
+    }
+  writeRaster(ndvi,file=ndvifile,overwrite=T)
+}
+
+ndvi=stack(ndvifile)
+names(ndvi)=paste0("n",nyears)
+ndvi=setZ(ndvi,nyears)
+```
+
+
+
+```r
+levelplot(ndvi,col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,margin=F,scales=list(draw=F))
+```
+
+![Merged annual maximum LANDSAT NDVI](./DataPrep_files/figure-html/unnamed-chunk-4.png) 

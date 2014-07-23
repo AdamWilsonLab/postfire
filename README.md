@@ -5,6 +5,8 @@ A workshop in modeling post-fire recovery and ecosystem resilience in _fynbos_ s
 
 The workshop will consist primarily of stepping through example code that explores the use of LANDSAT NDVI data in modeling post-fire recovery of _fynbos_.  The materials for the course are all available in a Git Repository at [https://github.com/adammwilson/postfire](https://github.com/adammwilson/postfire).
 
+
+
 # Repository Structure
 
 The repository is structured as follows:
@@ -26,9 +28,8 @@ Please attempt to have the following software installed and functioning prior to
 
 # Workshop objectives
 
-1. 
-2. Introduce participants to methods for quantifying post-fire recovery using satellite data
-2. 
+1. Introduce participants to methods for quantifying post-fire recovery using satellite data
+2. Provide a worked example of using LANDSAT data and covariates to quantify variability in post-fire recovery over the Cape Peninsula of South Africa
 
 ## Day 1
 
@@ -40,16 +41,21 @@ Please attempt to have the following software installed and functioning prior to
 	*  Git version control
 *   Data Preparation
 	*  Preparing the data for analysis, calculation of covariates (solar radiation, etc.)
-	*  Introduction to GRASS GIS    
-	*  Introduction to foreach parallel processing  
+	*  [Solar Radiation: and introduction to GRASS GIS](workflow/1_SolarRadiation/SolarRadiation.Rmd)
+	*  Introduction to foreach parallel processing 
 * Exploratory Data Analysis (EDA)
 	* 	
 	
 ### Session 2 (1pm -- 4pm)
+* Data processing
+  * Assembling covariates
+  * Generating the model data frame
+* Exploration of post-fire curves
 
 ## Day 2
 
 ### Session 1 (9am -- 12pm)
+
 
 ### Session 2 (1pm -- 4pm)
 * Introduction to bayesian model fitting

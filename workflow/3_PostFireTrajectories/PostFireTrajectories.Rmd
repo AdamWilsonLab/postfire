@@ -3,20 +3,10 @@ title: "PostFireTrajectories"
 author: "Adam M. Wilson"
 date: "July 22, 2014"
 output: html_document
----
----
-title: "NDVI Exploration"
-author: "Adam M. Wilson"
-#date: Today
-output:
-  html_document:
     toc: true
     theme: cerulean
-  pdf_document:
-    toc: true
-    highlight: zenburn
+    keep_md: true  
 
----
 
 ```{r,setup,echo=F,cache=F,results='hide',message=FALSE}
 ##  First some set up
@@ -28,79 +18,95 @@ opts_knit$set(root.dir=getwd(),cache=T,base.url = NULL)
 
 # Data
 
-## Load LANDSAT data
+Load the model data we made in [DataPrep.Rmd](../1_Data/DataPrep.Rmd)
 ```{r}
-getNDVI=function(file,years,prefix){
-  ndvi=stack(paste0(datadir,"raw/NDVI/",file))
-  NAvalue(ndvi)=0
-offs(ndvi)=-2
-gain(ndvi)=.001
-names(ndvi)=paste0(prefix,years)
-ndvi=setZ(ndvi,years)
-}
-```
-
-Now use the function to read in the data and add the relevant metadata.
-```{r}
-l4=getNDVI(file="20140722_26dbab02_LT4_L1T_ANNUAL_GREENEST_TOA__1982-1993-0000000000-0000000000.tif",
-           years=1982:1993,prefix="L4_")
-l5=getNDVI(file="20140722_26dbab02_LT5_L1T_ANNUAL_GREENEST_TOA__1984-2012-0000000000-0000000000.tif",
-           years=1984:2012,prefix="L5_")
-l7=getNDVI(file="20140722_26dbab02_LE7_L1T_ANNUAL_GREENEST_TOA__1999-2014-0000000000-0000000000.tif",
-           years=1999:2014,prefix="L7_")
-l8=getNDVI(file="20140722_26dbab02_LC8_L1T_ANNUAL_GREENEST_TOA__2013-2014-0000000000-0000000000.tif",
-           years=2013:2014,prefix="L8_")
+load("data/modeldata.Rata")
 ```
 
 
+## Change through time
 
-##Get covariates
+It's still hard to see change while looking at the full peninsula, so let's:
+
+1. pick a few pixels and plot NDVI as a function of time.  
+2. zoom in on a smaller region
+
+But first we need to pick a pixel (or a few) to plot.  There are a few ways to do this.  First let's try extracting values from a single cell:
 ```{r}
-years=1962:2014
-
-index=raster(paste0(datadir,"data/indexgrid_landsat_30m.gri"))
-veg=raster("data/vegtypes_landsat_30m.tif")
-cover=raster(paste0(datadir,"clean/landcover2009_landsat_30m.tif"))
-dem=raster(paste0(datadir,"data/dem_landsat_30m.tif"))
-
-age=stack("data/ages_annual_landsat_30m.tif")
-names(age)=paste0("age_",years)
-age=setZ(age,years)
+plot(c(ndvi[199165])~getZ(ndvi),type="l",ylab="NDVI",xlab="Year")
 ```
 
- Transform the data for easier plotting and analysis
+Or, we can use the `click` function (in Raster) that allows you to pick points on the map.  First we need to plot the data using the plot() command.
+
+```{r,eval=FALSE}
+## first plot the data
+plot(l5[[1]])
+## specify how many points you want to select
+nclicks=5
+d=click(l5,xy=T,n=nclicks,cell=T,id=TRUE,type="l")
+## now click on the map to select your points
+
+## reshape the data for easy plotting
+d$id=1:nrow(d)
+d2=melt(d,id.var=c("x","y","cell","id"));colnames(d2)=c("X","Y","Point","id","Year","NDVI")
+d2$Year=as.numeric(sub("Y","",d2$Year))
+p1=xyplot(NDVI~Year,groups=id,data=d2,type="l",auto.key=list(x=0,y=1))
+p2=levelplot(L5[[1]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,margin=F)+
+  layer(panel.text(d$x,d$y,d$id,col="red",cex=2))
+print(c(p1,p2,merge.legends=T))
+```
+
+
+### Regional plot
+
+Alternatively, we can aggregate the data from a larger region.  First import a shapefile of the reserves on the peninsula and the fire data.
 ```{r}
-### Make a dataframe of all spatial data
-sdat=cbind.data.frame("id"=values(index),coordinates(index),"veg"=values(veg),"cover"=values(cover),"dem"=values(dem))
+reserves=readOGR(paste0(datadir,"raw/reserves/"),"reserves")
+reserves=spTransform(reserves,CRS(proj4string(dem)))
 
-## make another dataframe for the temporally varying components
-tdat=cbind.data.frame(age,as.data.frame(l4),as.data.frame(l5),as.data.frame(l7),as.data.frame(l8))
-tdatl=melt(tdat,id.var="Index")
-tdatl[,c("type","year")]=do.call(rbind,strsplit(as.character(tdatl$variable,"_"))
 
-###Free up some memory by identifying cells with all missing NDVI observations
-ndvicols=grep("^L",colnames(dat))
-fnona=function(x) !all(is.na(x))  # function to identify rows that have all missing data
-dat=dat[apply(dat[,ndvicols],1,fnona),] #remove rows with NA data
+fi=readOGR(dsn=paste0(datadir,"raw/Fire"), layer="CapePenFires") #Cape Peninsula fires history layers 1962-2007
+fi=spTransform(fi,CRS(proj4string(dem)))
+```
 
-rm(list=c("l4","l5","l7","l8","age","cover","veg","index","dem", "peninsula")) #remove unwanted objects from memory
-dat=dat[which(dat$cover==1),] #trim to "natural" veg only
+Now select a region to explore.  You could do a single fire, a single reserve, or any combination of regions using the code below.  
+```{r}
+resname="SILVERMINE"
 
-### Reshape to 'long' format
-datl=melt(dat,id.vars=c("id","veg","cover","dem"),measure.vars=grep("^L",colnames(dat)),value=T,value.name = "ndvi")
-## separate the landsat sensor and year
-datl$landsat=substr(datl$variable,1,2)
-datl$year=substr(datl$variable,4,7)
+reg1=reserves[which(reserves$MASTERNAME==resname),]
+#reg1=fi[which(fi$FIREID==2000103),]
+```
 
-## now do the same thing for the ages
-datl2=melt(dat,id.vars=c("id"),measure.vars=grep("^age",colnames(dat)),value=T,value.name="age")
-datl2$year=substr(datl2$variable,5,8)
+```{r regextract}
+rd=extract(ig,reg1)
 
-## merge them together by matching the id-year's
-datl$age=datl2$age[match(paste(datl$id,datl$year),paste(datl2$id,datl2$year))]
 
-## clean up
-datl=datl[!is.na(datl$ndvi),c("id","veg","cover","dem","ndvi","landsat","year","age")]
+ggplot(rdl[rdl$cell%in%sample(rdl$cell,50),],aes(x=year,y=ndvi,group=cell))+
+  geom_line(size=.2,alpha=.5)+
+  stat_smooth(fill = "grey50",aes(group = 1),col="red")
+
+ggplot(rdl[rdl$cell%in%sample(rdl$cell,100),],aes(x=age,y=ndvi,group=cell))+
+  geom_line(size=.2,alpha=.5)+
+  stat_smooth(fill = "grey50",aes(group = 1),col="red")+xlim(0, 30)
+
+```
+
+
+
+> ### Exercise: 
+> 1. Explore the map for areas you are familiar with. Do you see any patterns?
+> 2. Can you identify any fires looking at the NDVI profiles?
+
+```{r,purl,echo=FALSE,results='hide',messages=F,error=FALSE,background=T}
+## this chunk outputs a copy of this script converted to a 'normal' R file with comments
+purl("workflow/ExploreNDVI/ExploreNDVI.Rmd",documentation=2,output = "workflow/ExploreNDVI/ExploreNDVI.R", quiet = TRUE) 
+```
+
+
+```{r}
+
+
+
 ```
 
 plot(Y1987~Elevation,data=dat)

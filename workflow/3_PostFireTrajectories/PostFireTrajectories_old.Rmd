@@ -1,0 +1,131 @@
+---
+title: "PostFireTrajectories"
+author: "Adam M. Wilson"
+date: "July 22, 2014"
+output: html_document
+---
+---
+title: "NDVI Exploration"
+author: "Adam M. Wilson"
+#date: Today
+output:
+  html_document:
+    toc: true
+    theme: cerulean
+    keep_md: true  
+
+---
+
+```{r,setup,echo=F,cache=F,results='hide',message=FALSE}
+##  First some set up
+source("../1_setup.R")
+opts_knit$set(root.dir=getwd(),cache=T,base.url = NULL)
+
+```
+
+
+# Data
+
+## Load LANDSAT data
+```{r}
+getNDVI=function(file,years,prefix){
+  ndvi=stack(paste0(datadir,"raw/NDVI/",file))
+  NAvalue(ndvi)=0
+offs(ndvi)=-2
+gain(ndvi)=.001
+names(ndvi)=paste0(prefix,years)
+ndvi=setZ(ndvi,years)
+}
+```
+
+Now use the function to read in the data and add the relevant metadata.
+```{r}
+l4=getNDVI(file="20140722_26dbab02_LT4_L1T_ANNUAL_GREENEST_TOA__1982-1993-0000000000-0000000000.tif",
+           years=1982:1993,prefix="L4_")
+l5=getNDVI(file="20140722_26dbab02_LT5_L1T_ANNUAL_GREENEST_TOA__1984-2012-0000000000-0000000000.tif",
+           years=1984:2012,prefix="L5_")
+l7=getNDVI(file="20140722_26dbab02_LE7_L1T_ANNUAL_GREENEST_TOA__1999-2014-0000000000-0000000000.tif",
+           years=1999:2014,prefix="L7_")
+l8=getNDVI(file="20140722_26dbab02_LC8_L1T_ANNUAL_GREENEST_TOA__2013-2014-0000000000-0000000000.tif",
+           years=2013:2014,prefix="L8_")
+```
+
+
+
+##Get covariates
+```{r}
+years=1962:2014
+
+index=raster(paste0(datadir,"clean/indexgrid_landsat_30m.gri"))
+veg=raster("data/vegtypes_landsat_30m.tif")
+cover=raster(paste0(datadir,"clean/landcover2009_landsat_30m.tif"))
+dem=raster(paste0(datadir,"clean/dem_landsat_30m.tif"))
+
+age=stack("data/ages_annual_landsat_30m.tif")
+names(age)=paste0("age_",years)
+age=setZ(age,years)
+```
+
+ Transform the data for easier plotting and analysis
+```{r}
+### Make a dataframe of all spatial data
+sdat=cbind.data.frame("id"=values(index),coordinates(index),"veg"=values(veg),"cover"=values(cover),"dem"=values(dem))
+
+## make another dataframe for the temporally varying components
+tdat=cbind.data.frame(age,as.data.frame(l4),as.data.frame(l5),as.data.frame(l7),as.data.frame(l8))
+tdatl=melt(tdat,id.var="Index")
+tdatl[,c("type","year")]=do.call(rbind,strsplit(as.character(tdatl$variable,"_"))
+
+###Free up some memory by identifying cells with all missing NDVI observations
+ndvicols=grep("^L",colnames(dat))
+fnona=function(x) !all(is.na(x))  # function to identify rows that have all missing data
+dat=dat[apply(dat[,ndvicols],1,fnona),] #remove rows with NA data
+
+rm(list=c("l4","l5","l7","l8","age","cover","veg","index","dem", "peninsula")) #remove unwanted objects from memory
+dat=dat[which(dat$cover==1),] #trim to "natural" veg only
+
+### Reshape to 'long' format
+datl=melt(dat,id.vars=c("id","veg","cover","dem"),measure.vars=grep("^L",colnames(dat)),value=T,value.name = "ndvi")
+## separate the landsat sensor and year
+datl$landsat=substr(datl$variable,1,2)
+datl$year=substr(datl$variable,4,7)
+
+## now do the same thing for the ages
+datl2=melt(dat,id.vars=c("id"),measure.vars=grep("^age",colnames(dat)),value=T,value.name="age")
+datl2$year=substr(datl2$variable,5,8)
+
+## merge them together by matching the id-year's
+datl$age=datl2$age[match(paste(datl$id,datl$year),paste(datl2$id,datl2$year))]
+
+## clean up
+datl=datl[!is.na(datl$ndvi),c("id","veg","cover","dem","ndvi","landsat","year","age")]
+```
+
+plot(Y1987~Elevation,data=dat)
+
+Select a few pixels to explore.  
+
+ndvi2=do.call(rbind,ndvi)
+
+xyplot(evi~age|id,type="l",data=ndvi2[ndvi2$id%in%sample(ndvi2$id,1000),],layout=c(2,1))
+
+minage=as.numeric(names(which(tapply(ndvi2$age,ndvi2$id,min,na.rm=T)<1)))
+xyplot(evi~age,groups=id,type="l",data=ndvi2[ndvi2$id%in%minage[1:1000],])
+
+
+st=data.frame(ndvi=tapply(ndvi2$ndvi,round(ndvi2$age,1),quantile,c(0.025,.25,.5,.75,.975),na.rm=T)); st$age=as.numeric(rownames(st))
+plot(ndvi~age,data=st,type="l",xlim=c(0,10))
+
+#############################
+### Explore the fitted breaks
+
+table(ndvi2$breakfire)
+
+
+
+
+
+```{r,purl,echo=FALSE,results='hide',messages=F,error=FALSE,background=T}
+## this chunk outputs a copy of this script converted to a 'normal' R file with comments
+purl("workflow/ExploreNDVI/ExploreNDVI.Rmd",documentation=2,output = "workflow/ExploreNDVI/ExploreNDVI.R", quiet = TRUE) 
+```

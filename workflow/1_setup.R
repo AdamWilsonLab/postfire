@@ -40,7 +40,7 @@ library(knitr);library(rmarkdown)
 library(animation)
 ## load grass
 library(spgrass6)
-
+library(ggplot2)
 ## get current working directory as an object to feed knitr
 cwd=getwd()
 

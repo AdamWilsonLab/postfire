@@ -6,12 +6,7 @@ output:
   html_document:
      toc: true    
      theme: cerulean
-  pdf_document:
-    toc: true
-    highlight: cerulean
-  md_document:
-    toc: true
-    highlight: cerulean
+     keep_md: true  
 ---
 
 ```{r,setup,echo=F,cache=F,results='hide',message=FALSE,error=FALSE,warning=FALSE}
