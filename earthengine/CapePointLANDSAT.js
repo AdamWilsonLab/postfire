@@ -2,10 +2,10 @@
 
 //  Specify destination and run name
 var drawmap=true;    // flag indicating whether to add the images to the map (below) or not.
-var exportfiles=false; // flag indicating whether to actually initiate the export, leve this false while testing
+var exportfiles=true; // flag indicating whether to actually initiate the export, leve this false while testing
 
 var driveFolder="ee_ZA_output"; // name of personal google drive folder to export to (this must be unique)
-var run="54ef46e7ea"; // any string to indicate a version.  I typically use a hash from my git repository
+var run="26dbab02"; // any string to indicate a version.  I typically use a hash from my git repository
 var verbose=true;     // print various status messages to the console (on the right)
 
 // limit overall date range  (only dates in this range will be included)
@@ -31,12 +31,12 @@ if(verbose) print(date);
 centerMap(18.4,-34.2,11);
 
 // Define a rectangular region to limit the analysis
-var studyArea = ee.Feature(ee.Geometry.Polygon([[18.3,-33.89], [18.3,-34.4], [18.5, -34.4],[18.5, -33.89], [18,-33.89]]));
+var studyArea = ee.Feature(ee.Geometry.Polygon([[18.3,-33.89], [18.3,-34.4], [18.5, -34.4],[18.5, -33.89], [18.3,-33.89]]));
 
 // Create a mask using SRTM elevation to mask out water
 var dem=ee.Image('CGIAR/SRTM90_V4');
 dem=dem.mask();//  Extract the mask which is essentially land-ocean
-var mask=dem.eq(1).clip(studyArea).focal_max(500,"circle","meters").eq(1).select([0],["MASK"]);
+var mask=dem.eq(1).focal_max(500,"circle","meters").eq(1).select([0],["MASK"]); //.clip(studyArea)
 
 /////////////////////////////////////////////////////
 /// Functions & housekeeping
@@ -55,15 +55,14 @@ var nYears=years.length;
 if(verbose){print('Processing '+years)}
 
 // function to apply mask to all images in collection
+// offset by 2 then scale by 1000 to avoid problems with nodata upon export
 function fprocess(img) {
-  return(img.select("greenness").multiply(100).mask(mask).int16());
+  return(img.select("greenness").add(2).multiply(1000).toInt16().where(mask.eq(0),0))
 }
 
       // filter by time
     var tfilter=ee.Filter.calendarRange(yearstart,yearstop,'year');
 
-
-var MAX = ee.call("Reducer.max");
 
 var NDVI_PALETTE = 
     'FFFFFF,CE7E45,DF923D,F1B555,FCD163,99B718,74A901,66A000,529400,' +
@@ -104,24 +103,24 @@ for (var i=0; i<prods.length; i ++) {
           var allndvi = allndvi.addBands(tndvi);
 
           if(drawmap) {
-              addToMap(ndvi,{min:-25,max:100,palette:NDVI_PALETTE},tname+years[y],0);
+              addToMap(tndvi,{min:1500,max:3000,palette:NDVI_PALETTE},tname+years[y],0);
           }
       }
  
-      // now export the multi-band image
-//          print(allndvi.getInfo())
 
       if(exportfiles){
-          var yearnames=years.join("-") 
-          var filename=date+'_'+run+'_'+tname+'__'+yearnames;
+          var filename=date+'_'+run+'_'+tname+'__'+years[0]+"-"+years[years.length-1];
 //          print(filename)
           if(verbose){  print('Exporting to: '+filename)} 
            exportImage(allndvi,filename,
                 {'maxPixels':1000000000,
                 'driveFolder':driveFolder,
-                'crs': 'EPSG:32734',
-                'scale': 30,
-                'region': studyArea.geometry().coordinates().getInfo()[0]
+//                'crs': 'EPSG:32734',
+//                'scale': 30,
+//                'region': studyArea.geometry().coordinates().getInfo()[0]
+                  'crs': 'EPSG:32734',
+                  'crs_transform': '[30,0,249990,0,-30,6247260]',
+                  'dimensions': '[674,1929]'
                 });
   }  
   
