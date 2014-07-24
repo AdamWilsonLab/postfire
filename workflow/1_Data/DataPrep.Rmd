@@ -114,7 +114,7 @@ names(rfi)=paste0("Fire_",years)
 ```
 
 ```{r fireplot}
-levelplot(rfi[[30:40]],scales=list(draw=F),at=c(0,0.5,1),col.regions=c("transparent","red"),auto.key=F)
+levelplot(rfi[[30:40]],scales=list(draw=F),at=c(0,0.5,1),col.regions=c("transparent","red"),auto.key=F,maxpixels=1e4)
 ```
 
 
@@ -166,11 +166,12 @@ if(!file.exists(agefile))
     age=calc(rfi,fage,file=agefile,progress='text',dataType="INT1S")
 age=stack(agefile)
 names(age)=paste0("age_",years)
+age=setZ(age,years)
 ```
 
 ```{r fireanim}
 levelplot(age[[30:40]],at=seq(0,53,len=100),col.regions=rainbow(100,start=.3),scales=list(draw=F),auto.key=F,
-          main="Veld age through time")
+          main="Veld age through time",maxpixels=1e4)
 ```
 
 
@@ -210,7 +211,7 @@ And a plot of a few different years:
 ```{r fig.width=7, fig.height=6}
 tyears=2002:2005
 yearind=which(getZ(l5)%in%tyears)
-levelplot(l5[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,layout=c(length(years),1),scales=list(draw=F))
+levelplot(l5[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,layout=c(length(years),1),scales=list(draw=F),maxpixels=1e4)
 ```
 
 
@@ -253,7 +254,7 @@ ndvi=setZ(ndvi,nyears)
 
 
 ```{r ndviplot,fig.cap="Merged annual maximum LANDSAT NDVI"}
-levelplot(ndvi,col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,margin=F,scales=list(draw=F),names.attr=getZ(ndvi))
+levelplot(ndvi,col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,margin=F,scales=list(draw=F),names.attr=getZ(ndvi),maxpixels=1e4)
 ```
 
 # Data Compilation
