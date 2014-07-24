@@ -1,16 +1,23 @@
+### Setup script:
+##     1 loads necessary libraries
+##     2 Sets parameters for your machine (working directory, path to dropbox, etc.)
+##     3 Sets some graphical parameters for making plots
+
+########################################
+### Load libraries
+libs=c("doMC","rasterVis","rgdal","reshape2","sp","knitr","rmarkdown","spgrass6","ggplot2","dplyr","minpack.lm")
+lapply(libs, require, character.only=T)
 
 ########################################
 ### Set some parameters for your machine
 
 ### Working directory (should be the root of the repository)
+# "USER" for Mac
+if (Sys.getenv("USER")=='adamw') setwd("/Users/adamw/repos/postfire") 
+# "USERNAME" for PC
+if (Sys.getenv("USERNAME")=='whoeveryouare') setwd ("C:/") 
 
-if (Sys.getenv("USER")=='jasper') setwd("/Users/jasper/Dropbox/Shared/Postfire_workshop/data") #use "USER" for Mac
-if (Sys.getenv("USER")=='adamw') setwd("/Users/adamw/repos/postfire") #use "USER" for Mac
-
-if (Sys.getenv("USERNAME")=='whoeveryouare') setwd ("C:/") #for PC
-
-
-## path to shared folder that has the source data
+## path to shared Dropbox folder that has the source data
 ## Never write anythiing to this folder!
 datadir="/Users/adamw/Dropbox/Postfire_workshop/Data/"
 
@@ -19,35 +26,27 @@ datadir="/Users/adamw/Dropbox/Postfire_workshop/Data/"
 tmpdir="data/tmp"
 if(!file.exists(tmpdir)) dir.create(tmpdir)
 
-
 ## Machine details
 ncores=3   # the number of cores you want to use for parallel processing
+registerDoMC(ncores)
 
 ## bath to GRASS executables
 gisbase="/Applications/GRASS-6.4.app/Contents/MacOS"
 
-########################################
-### Load libraries
-library(foreach)
-library(doMC)
-registerDoMC(ncores)
-library(raster)
-library(rasterVis)
-library(rgdal)
-library(reshape2)
-library(sp)
-library(knitr);library(rmarkdown)
-library(animation)
-## load grass
-library(spgrass6)
-library(ggplot2)
-## get current working directory as an object to feed knitr
-cwd=getwd()
 
+#########################################
+## Package settings
 
-### Set raster options
+## Set raster options
 rasterOptions(format="GTiff", overwrite=T)
 
+## knitr options - a function to add figure captions in HTML output 
+## from http://stackoverflow.com/questions/15010732/caption-in-the-html-output-of-knitr
+htmlcap = function(before, options, envir) {if(!before) {
+  paste('<p class="caption">',options$htmlcap,"</p>",sep="")
+}
+}
+opts_knit$set(root.dir=getwd(),cache=T,base.url = NULL,htmlcap=htmlcap)
 
 ########################################
 ### Define graphical parameters
@@ -61,5 +60,3 @@ cndvi=function(br=0.2,c1=c("darkgrey","burlywood4"),c2=c("burlywood4","darkgreen
 }
 ndvi.colors=cndvi()$col
 
-
-### import Peninsula polygon for nice plotting

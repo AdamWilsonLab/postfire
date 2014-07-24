@@ -1,31 +1,31 @@
----
-title: "DataPrep"
-author: "Jasper Slingsby & Adam M. Wilson"
-date: "July 22, 2014"
-output:
-  html_document:
-    toc: true
-    theme: cerulean
-    keep_md: true  
----
-
-
-```{r setup,echo=F,cache=F,results='hide',message=FALSE}
+#' ---
+#' title: "DataPrep"
+#' author: "Jasper Slingsby & Adam M. Wilson"
+#' date: "July 22, 2014"
+#' output:
+#'   html_document:
+#'     toc: true
+#'     theme: cerulean
+#'     keep_md: true  
+#' ---
+#' 
+#' 
+## ----setup,echo=F,cache=F,results='hide',message=FALSE-------------------
 ##  Source the setup file
 source("../1_setup.R")
-```
 
-This script assembles various environmental layers into a common 30m grid for the Cape Peninsula.  It also calculates veg age based on the fire data.
-
-## Index raster
-Create a raster of an index grid (`ig`) to spatially connect all the datasets.
-```{r index}
+#' 
+#' This script assembles various environmental layers into a common 30m grid for the Cape Peninsula.  It also calculates veg age based on the fire data.
+#' 
+#' ## Index raster
+#' Create a raster of an index grid (`ig`) to spatially connect all the datasets.
+## ----index---------------------------------------------------------------
 ig=raster(paste0(datadir,"clean/indexgrid_landsat_30m.grd")) 
-```
 
-## Vegetation 
-
-```{r veg}
+#' 
+#' ## Vegetation 
+#' 
+## ----veg-----------------------------------------------------------------
 rv=readOGR(dsn=paste0(datadir,"raw/VegLayers/Vegetation_Indigenous_Remnants"), layer="Vegetation_Indigenous_Remnants") 
 #remnant veg layer - readOGR() reads shapefiles
 #rv; summary(rv$National_); summary(rv$Subtype); summary(rv$Community); levels(rv@data$National_)
@@ -36,10 +36,10 @@ write.csv(rv_meta, "data/vegtypecodes.csv", row.names=F)
 # reproject to the CRS of the Landsat index grid (UTM 34S)
 rv=spTransform(rv,CRS(proj4string(ig)))
 
-```
 
-Extract the national veg types from the veg layer into a 30m raster based on the index grid
-```{r veg2,htmlcap="Land cover types aggregated to the 30m grid"}
+#' 
+#' Extract the national veg types from the veg layer into a 30m raster based on the index grid
+## ----veg2,htmlcap="Land cover types aggregated to the 30m grid"----------
 rvrfile="data/vegtypes_landsat_30m.tif"
 if(!file.exists(rvrfile))
   rvr=rasterize(rv, ig, field=c("National_"), fun="max",file=rvrfile) #get national veg type for each cell
@@ -48,24 +48,24 @@ rvr=raster(rvrfile)
 rvr=as.factor(rvr)
 levels(rvr)=rv_meta[levels(rvr)[[1]]$ID,]
 #levelplot(rvr,col.regions=rainbow(nrow(rv_meta),start=.3))
-```
 
-Count number of veg types for each cell (i.e. ID mixed cells)
-```{r vegc}
+#' 
+#' Count number of veg types for each cell (i.e. ID mixed cells)
+## ----vegc----------------------------------------------------------------
 rvcfile="data/count_vegtypes_landsat_30m.tif"
 if(!file.exists(rvcfile))
   rvc=rasterize(rv, ig, field=c("National_"), fun="count",file=rvcfile) 
 rvc=raster(rvcfile)
-```
 
-Are there any mixed cells?
-
-```{r}
+#' 
+#' Are there any mixed cells?
+#' 
+## ------------------------------------------------------------------------
 table(values(rvc))
-```
 
-## Fire data
-```{r fire1}
+#' 
+#' ## Fire data
+## ----fire1---------------------------------------------------------------
 fi=readOGR(dsn=paste0(datadir,"raw/Fire"), layer="CapePenFires") #Cape Peninsula fires history layers 1962-2007
 fi=spTransform(fi,CRS(proj4string(ig)))
 
@@ -79,12 +79,12 @@ if(!file.exists(ficfile))
     fic=rasterize(fi, ig, field=c("STARTDATE"), fun="count",file=ficfile) 
 
 fic=raster(ficfile)
-```
 
-
-
-### Rasterize fire data into annual fire maps 
-```{r fire2}
+#' 
+#' 
+#' 
+#' ### Rasterize fire data into annual fire maps 
+## ----fire2---------------------------------------------------------------
 years=sort(unique(fi$YEAR)) #get the unique list of years in which fires occurred
 years=1962:2014
 #years=years[years>1981] #trim to 1982 onwards (our earliest reliable Landsat data)
@@ -110,29 +110,29 @@ rfi=stack(rfifile)
 ## add year as name
 names(rfi)=paste0("Fire_",years)
 
-```
 
-```{r fireplot}
+#' 
+## ----fireplot------------------------------------------------------------
 levelplot(rfi[[30:40]],scales=list(draw=F),at=c(0,0.5,1),col.regions=c("transparent","red"),auto.key=F,maxpixels=1e4)
-```
 
-
-### Calculate veg age from fire history
-Now we have an object `rfi` (rasterized fires) with one band/layer for each year with 0s and 1s indicating whether that pixel burned in that year.  We can use that to calculate the time since fire by setting the year that burned to 0 and adding 1 for each subsequent year until the next fire.  
-
-First let's look at one pixel's data:
-
-```{r table1,results='asis'}
+#' 
+#' 
+#' ### Calculate veg age from fire history
+#' Now we have an object `rfi` (rasterized fires) with one band/layer for each year with 0s and 1s indicating whether that pixel burned in that year.  We can use that to calculate the time since fire by setting the year that burned to 0 and adding 1 for each subsequent year until the next fire.  
+#' 
+#' First let's look at one pixel's data:
+#' 
+## ----table1,results='asis'-----------------------------------------------
 x=as.vector(rfi[551072])
 x2=rbind(fire=x)
 colnames(x2)=years
 kable(x2)
-```
 
-
-So we need a function that finds the fires and counts up each year.  We'll put in years before the first fire as negatives so we can identify them later.
-
-```{r fage}
+#' 
+#' 
+#' So we need a function that finds the fires and counts up each year.  We'll put in years before the first fire as negatives so we can identify them later.
+#' 
+## ----fage----------------------------------------------------------------
 fage=function(x){
   ## if there are no fires, return all negative numbers
   if(sum(x)==0){return(-1:(-length(x)))}
@@ -149,34 +149,34 @@ fage=function(x){
     tage[i]=ifelse((i-1)%in%fids,0,tage[i-1]+1)
 return(tage)
 }}
-```
-Now let's try that: 
-```{r table2,results='asis'}
+
+#' Now let's try that: 
+## ----table2,results='asis'-----------------------------------------------
 x=as.vector(rfi[551072])
 x2=rbind(fire=x,age=fage(x))
 colnames(x2)=years
 kable(x2)
-```
 
-Now use `calc` to apply that to the full stack.
-```{r fireages}
+#' 
+#' Now use `calc` to apply that to the full stack.
+## ----fireages------------------------------------------------------------
 agefile="data/ages_annual_landsat_30m.tif"
 if(!file.exists(agefile))
     age=calc(rfi,fage,file=agefile,progress='text',dataType="INT1S")
 age=stack(agefile)
 names(age)=paste0("age_",years)
 age=setZ(age,years)
-```
 
-```{r fireanim}
+#' 
+## ----fireanim------------------------------------------------------------
 levelplot(age[[30:40]],at=seq(0,53,len=100),col.regions=rainbow(100,start=.3),scales=list(draw=F),auto.key=F,
           main="Veld age through time",maxpixels=1e4)
-```
 
-
-## NDVI Compositing
-
-```{r fgetndvi}
+#' 
+#' 
+#' ## NDVI Compositing
+#' 
+## ----fgetndvi------------------------------------------------------------
 getNDVI=function(file,years,prefix){
   ndvi=stack(paste0(datadir,"raw/NDVI/",file))
   NAvalue(ndvi)=0
@@ -185,10 +185,10 @@ gain(ndvi)=.001
 names(ndvi)=paste0(prefix,years)
 ndvi=setZ(ndvi,years)
 }
-```
 
-Now use the function to read in the data and add the relevant metadata.
-```{r loadLandsat}
+#' 
+#' Now use the function to read in the data and add the relevant metadata.
+## ----loadLandsat---------------------------------------------------------
 l4=getNDVI(file="20140722_26dbab02_LT4_L1T_ANNUAL_GREENEST_TOA__1982-1993-0000000000-0000000000.tif",
            years=1982:1993,prefix="L4_")
 l5=getNDVI(file="20140722_26dbab02_LT5_L1T_ANNUAL_GREENEST_TOA__1984-2012-0000000000-0000000000.tif",
@@ -198,33 +198,33 @@ l7=getNDVI(file="20140722_26dbab02_LE7_L1T_ANNUAL_GREENEST_TOA__1999-2014-000000
 l8=getNDVI(file="20140722_26dbab02_LC8_L1T_ANNUAL_GREENEST_TOA__2013-2014-0000000000-0000000000.tif",
            years=2013:2014,prefix="L8_")
 
-```
 
-Let's check out one of the LANDSAT objects.  Raster provides a summary by just typing the object's name:
-```{r}
+#' 
+#' Let's check out one of the LANDSAT objects.  Raster provides a summary by just typing the object's name:
+## ------------------------------------------------------------------------
 l7
-```
 
-And a plot of a few different years:
-
-```{r landsatplot, fig.width=7, fig.height=6}
+#' 
+#' And a plot of a few different years:
+#' 
+## ----landsatplot, fig.width=7, fig.height=6------------------------------
 tyears=2002:2005
 yearind=which(getZ(l5)%in%tyears)
 levelplot(l5[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,layout=c(length(yearind),1),scales=list(draw=F),maxpixels=1e4)
-```
 
-
-There is some temporal overlap between sensors, let's look at that:
-```{r landsateras,fig.cap="Timeline of LANDSAT data by sensor",fig.height=3}
+#' 
+#' 
+#' There is some temporal overlap between sensors, let's look at that:
+## ----landsateras,fig.cap="Timeline of LANDSAT data by sensor",fig.height=3----
 tl=melt(list(l4=getZ(l4),l5=getZ(l5),l7=getZ(l7),l8=getZ(l8)))
 xyplot(as.factor(L1)~value,data=tl,type="l",groups=as.factor(L1),asp=.15,lwd=5,ylab="LANDSAT Satellite",xlab="Year")
-```
 
-There are several ways these data could be combined.  The individual scenes could be assessed for quality (cloud contamination, etc.), sensors could be weighted by sensor quality (newer=better?).  Today, we'll simply take the maximum of available data for each year.  
-
-      What are the limitations of this approach? 
-
-```{r ndviprocess}
+#' 
+#' There are several ways these data could be combined.  The individual scenes could be assessed for quality (cloud contamination, etc.), sensors could be weighted by sensor quality (newer=better?).  Today, we'll simply take the maximum of available data for each year.  
+#' 
+#'       What are the limitations of this approach? 
+#' 
+## ----ndviprocess---------------------------------------------------------
 nyears=1984:2014
 
 ndvifile="data/ndvi_annual_landsat_30m.tif"
@@ -251,24 +251,24 @@ if(!file.exists(ndvifile)){
 ndvi=stack(ndvifile)
 names(ndvi)=paste0("ndvi_",nyears)
 ndvi=setZ(ndvi,nyears)
-```
 
-
-```{r ndviplot,fig.cap="Merged annual maximum LANDSAT NDVI"}
+#' 
+#' 
+## ----ndviplot,fig.cap="Merged annual maximum LANDSAT NDVI"---------------
 tyears=1984:2014
 yearind=which(getZ(ndvi)%in%tyears)
 
 levelplot(ndvi[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),
           at=cndvi()$at,margin=F,scales=list(draw=F),
           names.attr=getZ(ndvi)[yearind],maxpixels=1e4)
-```
 
-# Data Compilation
-
-## Select domain of interest
-Here we will define the subset of cells that we will explore further.  You can fiddle with these settings to include fewer (or more) cells.  If your computer is slow, you may want to subset this further.
-
-```{r sdat,results='asis'}
+#' 
+#' # Data Compilation
+#' 
+#' ## Select domain of interest
+#' Here we will define the subset of cells that we will explore further.  You can fiddle with these settings to include fewer (or more) cells.  If your computer is slow, you may want to subset this further.
+#' 
+## ----sdat,results='asis'-------------------------------------------------
 
 ## load data for masking
 cover=raster(paste0(datadir,"clean/landcover2009_landsat_30m.gri"))
@@ -301,11 +301,11 @@ sdat=data.frame(
 )
 
 kable(head(sdat))
-```
 
-
-## Temporally varying data
-```{r tdat,results='asis'}
+#' 
+#' 
+#' ## Temporally varying data
+## ----tdat,results='asis'-------------------------------------------------
 ## subset age to years with ndvi data
 age=age[[which(getZ(age)%in%getZ(ndvi))]]
 
@@ -315,26 +315,26 @@ tdat=data.frame(
   extract(ndvi,maskids)
   )
 kable(tdat[1:10,1:10])
-```
 
-### Reshape temporal data
-It's often easier to work with data in 'long' format where there is one row for each observation and another column indicating what the observation is.  Let's `melt` the data to 'long' format.
-```{r tdatl,results='asis'}
+#' 
+#' ### Reshape temporal data
+#' It's often easier to work with data in 'long' format where there is one row for each observation and another column indicating what the observation is.  Let's `melt` the data to 'long' format.
+## ----tdatl,results='asis'------------------------------------------------
 tdatl=melt(tdat,id.var="id")
 tdatln=cbind.data.frame(lab=levels(tdatl$variable),do.call(rbind,strsplit(as.character(levels(tdatl$variable)),"_")))
 tdatl[,c("type","year")]=tdatln[match(tdatl$variable,tdatln$lab),2:3]
 tdatl=dcast(tdatl,id+year~type,value.var="value")
 
 kable(head(tdatl),row.names = F)
-```
 
-Save it as an R data object for later use.
-```{r save}
+#' 
+#' Save it as an R data object for later use.
+## ----save----------------------------------------------------------------
 save(sdat,tdat,tdatl,file="data/modeldata.Rdata")
-```
 
-```{r ,echo=FALSE,results='hide',messages=FALSE,error=FALSE,background=T}
+#' 
+## ----,echo=FALSE,results='hide',messages=FALSE,error=FALSE,background=T----
 ## this chunk outputs a copy of this script converted to a 'normal' R file with comments
 purl("workflow/1_Data/DataPrep.Rmd",documentation=2,output="workflow/1_Data/DataPrep.R", quiet = TRUE)
-```
 
+#' 

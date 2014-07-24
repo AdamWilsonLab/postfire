@@ -4,6 +4,7 @@ July 22, 2014
 
 
 
+
 This script assembles various environmental layers into a common 30m grid for the Cape Peninsula.  It also calculates veg age based on the fire data.
 
 ## Index raster
@@ -17,7 +18,7 @@ ig=raster(paste0(datadir,"clean/indexgrid_landsat_30m.grd"))
 
 
 ```r
-rv=readOGR(dsn=paste0(datadir,"raw/VegLayers/Vegetation_Indigenous_Remnants"), layer="Vegetation_Indigenous_Remnants") #remnant veg layer - readOGR() reads shapefiles
+rv=readOGR(dsn=paste0(datadir,"raw/VegLayers/Vegetation_Indigenous_Remnants"), layer="Vegetation_Indigenous_Remnants") 
 ```
 
 ```
@@ -28,10 +29,11 @@ rv=readOGR(dsn=paste0(datadir,"raw/VegLayers/Vegetation_Indigenous_Remnants"), l
 ```
 
 ```r
+#remnant veg layer - readOGR() reads shapefiles
 #rv; summary(rv$National_); summary(rv$Subtype); summary(rv$Community); levels(rv@data$National_)
 rv_meta=data.frame(1:length(levels(rv@data$National_)), levels(rv@data$National_)) #save VegType metadata
 colnames(rv_meta)=c("ID", "code") #rename columns
-write.csv(rv_meta, paste0(datadir,"clean/vegtypecodes.csv", row.names=F))
+write.csv(rv_meta, "data/vegtypecodes.csv", row.names=F)
 
 # reproject to the CRS of the Landsat index grid (UTM 34S)
 rv=spTransform(rv,CRS(proj4string(ig)))
@@ -46,20 +48,9 @@ if(!file.exists(rvrfile))
 ## read it back in and 'factorize' it
 rvr=raster(rvrfile)
 rvr=as.factor(rvr)
-levels(rvr)=rv_meta
+levels(rvr)=rv_meta[levels(rvr)[[1]]$ID,]
+#levelplot(rvr,col.regions=rainbow(nrow(rv_meta),start=.3))
 ```
-
-```
-## Warning: the number of rows in the raster attributes (factors) data.frame is unexpected
-## Warning: longer object length is not a multiple of shorter object length
-## Warning: the values in the "ID" column in the raster attributes (factors) data.frame have changed
-```
-
-```r
-levelplot(rvr,col.regions=rainbow(nrow(rv_meta)))
-```
-
-![Land cover types aggregated to the 30m grid](./DataPrep_files/figure-html/veg2.png) 
 
 Count number of veg types for each cell (i.e. ID mixed cells)
 
@@ -282,10 +273,10 @@ And a plot of a few different years:
 ```r
 tyears=2002:2005
 yearind=which(getZ(l5)%in%tyears)
-levelplot(l5[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,layout=c(length(years),1),scales=list(draw=F),maxpixels=1e4)
+levelplot(l5[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,layout=c(length(yearind),1),scales=list(draw=F),maxpixels=1e4)
 ```
 
-![plot of chunk unnamed-chunk-5](./DataPrep_files/figure-html/unnamed-chunk-5.png) 
+![plot of chunk landsatplot](./DataPrep_files/figure-html/landsatplot.png) 
 
 
 There is some temporal overlap between sensors, let's look at that:
@@ -295,9 +286,11 @@ tl=melt(list(l4=getZ(l4),l5=getZ(l5),l7=getZ(l7),l8=getZ(l8)))
 xyplot(as.factor(L1)~value,data=tl,type="l",groups=as.factor(L1),asp=.15,lwd=5,ylab="LANDSAT Satellite",xlab="Year")
 ```
 
-![Timeline of LANDSAT data by sensor](./DataPrep_files/figure-html/unnamed-chunk-6.png) 
+![Timeline of LANDSAT data by sensor](./DataPrep_files/figure-html/landsateras.png) 
 
-There are several ways these data could be combined.  The individual scenes could be assessed for quality (cloud contamination, etc.), sensors could be weighted by sensor quality (newer=better?).  Today, we'll simply take the mean of available data for each year.  What are the limitations of this approach? 
+There are several ways these data could be combined.  The individual scenes could be assessed for quality (cloud contamination, etc.), sensors could be weighted by sensor quality (newer=better?).  Today, we'll simply take the maximum of available data for each year.  
+
+      What are the limitations of this approach? 
 
 
 ```r
@@ -314,7 +307,7 @@ if(!file.exists(ndvifile)){
     # drop LANDSATs with no data for this year
     w2=w1[!is.na(w1)]
     # make a stack with the desired year for all sensors that have data
-    tndvi=mean(stack(lapply(1:length(w2),function(i) {
+    tndvi=max(stack(lapply(1:length(w2),function(i) {
         print(i)
       td=get(names(w2[i]))
       return(td[[w2[i]]])
@@ -332,7 +325,12 @@ ndvi=setZ(ndvi,nyears)
 
 
 ```r
-levelplot(ndvi,col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,margin=F,scales=list(draw=F),names.attr=getZ(ndvi),maxpixels=1e4)
+tyears=1984:2014
+yearind=which(getZ(ndvi)%in%tyears)
+
+levelplot(ndvi[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),
+          at=cndvi()$at,margin=F,scales=list(draw=F),
+          names.attr=getZ(ndvi)[yearind],maxpixels=1e4)
 ```
 
 ![Merged annual maximum LANDSAT NDVI](./DataPrep_files/figure-html/ndviplot.png) 
@@ -419,34 +417,33 @@ kable(tdat[1:10,1:10])
 | 85275|      -23|      -24|      -25|      -26|      -27|      -28|      -29|      -30|      -31|
 
 ### Reshape temporal data
+It's often easier to work with data in 'long' format where there is one row for each observation and another column indicating what the observation is.  Let's `melt` the data to 'long' format.
 
 ```r
 tdatl=melt(tdat,id.var="id")
 tdatln=cbind.data.frame(lab=levels(tdatl$variable),do.call(rbind,strsplit(as.character(levels(tdatl$variable)),"_")))
 tdatl[,c("type","year")]=tdatln[match(tdatl$variable,tdatln$lab),2:3]
-## sort it (for convenience)
-tdatl=tdatl[order(tdatl$id,tdatl$year),c("id","year","type","value")]
+tdatl=dcast(tdatl,id+year~type,value.var="value")
 
-kable(head(tdatl,row.names=F))
+kable(head(tdatl),row.names = F)
 ```
 
-```
-## 
-## 
-## |        |    id|year |type |   value|
-## |:-------|-----:|:----|:----|-------:|
-## |1       | 83925|1984 |age  | -23.000|
-## |7888106 | 83925|1984 |ndvi |   0.279|
-## |254456  | 83925|1985 |age  | -24.000|
-## |8142561 | 83925|1985 |ndvi |   0.582|
-## |508911  | 83925|1986 |age  | -25.000|
-## |8397016 | 83925|1986 |ndvi |   0.483|
-```
+
+
+|    id|year | age|   ndvi|
+|-----:|:----|---:|------:|
+| 83925|1984 | -23| 0.2790|
+| 83925|1985 | -24| 0.5820|
+| 83925|1986 | -25| 0.4830|
+| 83925|1987 | -26| 0.3160|
+| 83925|1988 | -27| 0.3080|
+| 83925|1989 | -28| 0.4155|
 
 Save it as an R data object for later use.
 
 ```r
 save(sdat,tdat,tdatl,file="data/modeldata.Rdata")
 ```
+
 
 

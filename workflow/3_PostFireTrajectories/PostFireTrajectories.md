@@ -1,26 +1,16 @@
----
-title: "PostFireTrajectories"
-author: "Adam M. Wilson"
-date: "July 22, 2014"
-output: 
-  html_document:
-    toc: true
-    theme: cerulean
-    keep_md: true  
----
+# PostFireTrajectories
+Adam M. Wilson  
+July 22, 2014  
 
 
-```{r,setup,echo=F,cache=F,results='hide',message=FALSE}
-##  First some set up
-source("../1_setup.R")
-ig=raster(paste0(datadir,"clean/indexgrid_landsat_30m.grd")) 
-```
+
 
 
 # Data
 
 Load the model data we made in [DataPrep.Rmd](../1_Data/DataPrep.Rmd)
-```{r loaddata,results='asis'}
+
+```r
 load("data/modeldata.Rdata")
 rv_meta=read.csv("data/vegtypecodes.csv")
 sdat$vegn=rv_meta$code[match(sdat$veg,rv_meta$ID)]
@@ -31,6 +21,17 @@ kable(head(dat),row.names=F)
 ```
 
 
+
+|    id|year | age|   ndvi|    id|      x|       y| veg| cover|  tmax|  tmin|   dem|   tpi|vegn                         |
+|-----:|:----|---:|------:|-----:|------:|-------:|---:|-----:|-----:|-----:|-----:|-----:|:----------------------------|
+| 83925|1984 | -23| 0.2790| 83925| 260445| 6243525|  18|     1| 28.19| 9.413| 152.5| 7.934|Peninsula Shale Renosterveld |
+| 83925|1985 | -24| 0.5820| 83925| 260445| 6243525|  18|     1| 28.19| 9.413| 152.5| 7.934|Peninsula Shale Renosterveld |
+| 83925|1986 | -25| 0.4830| 83925| 260445| 6243525|  18|     1| 28.19| 9.413| 152.5| 7.934|Peninsula Shale Renosterveld |
+| 83925|1987 | -26| 0.3160| 83925| 260445| 6243525|  18|     1| 28.19| 9.413| 152.5| 7.934|Peninsula Shale Renosterveld |
+| 83925|1988 | -27| 0.3080| 83925| 260445| 6243525|  18|     1| 28.19| 9.413| 152.5| 7.934|Peninsula Shale Renosterveld |
+| 83925|1989 | -28| 0.4155| 83925| 260445| 6243525|  18|     1| 28.19| 9.413| 152.5| 7.934|Peninsula Shale Renosterveld |
+
+
 ## Change through time
 
 It's still hard to see change while looking at the full peninsula, so let's:
@@ -39,13 +40,15 @@ It's still hard to see change while looking at the full peninsula, so let's:
 2. zoom in on a smaller region
 
 But first we need to pick a pixel (or a few) to plot.  There are a few ways to do this.  First let's try extracting values from a single cell:
-```{r,eval=FALSE}
+
+```r
 plot(c(ndvi[199165])~getZ(ndvi),type="l",ylab="NDVI",xlab="Year")
 ```
 
 Or, we can use the `click` function (in Raster) that allows you to pick points on the map.  First we need to plot the data using the plot() command.
 
-```{r,eval=FALSE}
+
+```r
 ## first plot the data
 plot(l5[[1]])
 ## specify how many points you want to select
@@ -67,17 +70,43 @@ print(c(p1,p2,merge.legends=T))
 ### Regional plot
 
 Alternatively, we can aggregate the data from a larger region.  First import a shapefile of the reserves on the peninsula and the fire data.
-```{r loadreserves}
+
+```r
 reserves=readOGR(paste0(datadir,"raw/reserves/"),"reserves")
+```
+
+```
+## OGR data source with driver: ESRI Shapefile 
+## Source: "/Users/adamw/Dropbox/Postfire_workshop/Data/raw/reserves/", layer: "reserves"
+## with 50 features and 9 fields
+## Feature type: wkbPolygon with 2 dimensions
+```
+
+```r
 reserves=spTransform(reserves,CRS(proj4string(ig)))
 
 
 fi=readOGR(dsn=paste0(datadir,"raw/Fire"), layer="CapePenFires") #Cape Peninsula fires history layers 1962-2007
+```
+
+```
+## OGR data source with driver: ESRI Shapefile 
+## Source: "/Users/adamw/Dropbox/Postfire_workshop/Data/raw/Fire", layer: "CapePenFires"
+## with 4578 features and 9 fields
+## Feature type: wkbPolygon with 3 dimensions
+```
+
+```
+## Warning: Z-dimension discarded
+```
+
+```r
 fi=spTransform(fi,CRS(proj4string(ig)))
 ```
 
 Now select a region to explore.  You could do a single fire, a single reserve, or any combination of regions using the code below.  
-```{r subset}
+
+```r
 resname="SILVERMINE"
 
 reg1=reserves[which(reserves$MASTERNAME==resname),]
@@ -87,23 +116,48 @@ rd=extract(ig,reg1)[[1]]
 levelplot(dem~x*y,data=sdat[sdat$id%in%rd,],main="Elevation")+latticeExtra::layer(sp.polygons(reg1))
 ```
 
-```{r regextract}
+![plot of chunk subset](./PostFireTrajectories_files/figure-html/subset.png) 
 
+
+```r
 ggplot(dat[dat$id%in%sample(rd,50),],aes(x=as.numeric(year),y=ndvi,group=id))+
   geom_line(size=.2,alpha=.5)+
   stat_smooth(fill = "grey50",aes(group = 1),col="red")
+```
 
+```
+## geom_smooth: method="auto" and size of largest group is >=1000, so using gam with formula: y ~ s(x, bs = "cs"). Use 'method = x' to change the smoothing method.
+```
+
+![plot of chunk regextract](./PostFireTrajectories_files/figure-html/regextract1.png) 
+
+```r
 ggplot(dat[dat$age>=0&dat$id%in%sample(rd,10000),],aes(x=abs(age),y=ndvi,group=id))+
   geom_line(size=.2,alpha=.5)+facet_grid(. ~ vegn)+
   stat_smooth(fill = "grey50",aes(group = 1),col="red")#+xlim(0, 30)
+```
 
 ```
+## geom_smooth: method="auto" and size of largest group is >=1000, so using gam with formula: y ~ s(x, bs = "cs"). Use 'method = x' to change the smoothing method.
+## geom_smooth: method="auto" and size of largest group is >=1000, so using gam with formula: y ~ s(x, bs = "cs"). Use 'method = x' to change the smoothing method.
+## geom_smooth: method="auto" and size of largest group is >=1000, so using gam with formula: y ~ s(x, bs = "cs"). Use 'method = x' to change the smoothing method.
+```
+
+```
+## Warning: Removed 1 rows containing missing values (stat_smooth).
+```
+
+```
+## geom_smooth: method="auto" and size of largest group is >=1000, so using gam with formula: y ~ s(x, bs = "cs"). Use 'method = x' to change the smoothing method.
+```
+
+![plot of chunk regextract](./PostFireTrajectories_files/figure-html/regextract2.png) 
 
 # Non-linear model fitting
 
 The model I've been using (minus the seasonal component) is:
 
-$\text{NDVI}_{i,t}\sim\mathcal{N}(\mu_{i,t},\sigma)$ 
+$\text{NDVI}_{i,t}\sim\mathcal{N}(\mu_{i,t},\frac{1}{\sqrt{\tau}})$ 
 
 where $\mu$ is
 
@@ -111,14 +165,16 @@ $\mu_{i,t}=\alpha_i+\gamma_i\Big(1-e^{-\frac{age_{i,t}}{\lambda_i}}\Big)$
 
 # Simulate data
 Often the best way to learn about a new model is to simulate data with known properties (parameters), perhaps add some noise, and then try to get those parameters back using the model.  First make a function that simulates a recovery trajectory.
-```{r rfun}
+
+```r
 cfun=function(ps,age=x,error=0){
   ps[["alpha"]]+ps[["gamma"]]*(1-exp(-age/ps[["lambda"]]))+error
  }
 ```
 
 Now let's use it to make up some _data_.
-```{r simulatedata1}
+
+```r
 ## Assign recovery parameters
 ps=list(
   alpha=.2,
@@ -135,13 +191,16 @@ plot(cfun(ps,x,error=rnorm(length(x),0,.05))~x,ylim=c(0,1),pch=16,col="grey",
 lines(cfun(ps,x)~x,col="red",lwd=3)
 ```
 
+![plot of chunk simulatedata1](./PostFireTrajectories_files/figure-html/simulatedata1.png) 
+
 Feel free to fiddle with the parameters above (alpha, gamma, and lambda) to see what happens and how they vary.  
 
   What do each of the parameters do?
 
 
 Now let's explore what the parameters do a little more systematically by making a full 'grid' that covers the reasonable variation of each parameter.
-```{r simulatedata2}
+
+```r
 pspace=expand.grid(alpha = seq(0.1,0.3, len = 3),gamma = seq(0.1,0.5, len = 3), lambda = seq(1, 25, len = 10))
 ## limit it to reasonable values (alpha+gamma cannot be >1)
 pspace=pspace[(pspace$alpha+pspace$gamma)<1,]
@@ -155,7 +214,8 @@ pdatal$age=as.numeric(pdatal$age)
 pdatal[,c("alpha","gamma","lambda")]=pspace[pdatal$id,]
 ```
 
-```{r simulatedataplot}
+
+```r
 ggplot(pdatal,aes(x=age,y=ndvi,group=lambda,colour=lambda))+
    geom_line(size=1)+
   facet_grid(gamma~alpha)+
@@ -163,12 +223,11 @@ ggplot(pdatal,aes(x=age,y=ndvi,group=lambda,colour=lambda))+
   theme(plot.title = element_text(lineheight=.8, face="bold"))+
   ggtitle("Simulated Recovery Trajectories \n with various parameters (alpha~gamma)")
 ```
-Remember the formula?
 
-$\mu_{i,t}=\alpha_i+\gamma_i\Big(1-e^{-\frac{age_{i,t}}{\lambda_i}}\Big)$
+![plot of chunk simulatedataplot](./PostFireTrajectories_files/figure-html/simulatedataplot.png) 
 
 
-```{r fitdata1,eval=FALSE}
+```r
 ctl=nls.control(maxiter = 150,minFactor=1e-10)
 
 #form=as.formula(ndvi~1-exp(-age/lambda))
@@ -185,21 +244,32 @@ upper=c(1,1,1)
 m <- nlsLM(form, data =dats, start = start, trace = T,control=ctl,lower=lower,upper=upper)
 plot(ndvi~age,data=dats,col="grey")
 curve(coef(m)$alpha+.07*(1-exp(-x/1)),0,30,add=T,col="red")
-
 ```
 
 ## Explore the real data
 
 ## Create a subset
-To make things run faster while we're experimenting, let's subset the data,  For example, drop ages before the first fire (which are censored and uncertain), keep only fires in `r resname`, and select only "Peninsula Granite Fynbos - South"
+To make things run faster while we're experimenting, let's subset the data,  For example, drop ages before the first fire (which are censored and uncertain), keep only fires in SILVERMINE, and select only "Peninsula Granite Fynbos - South"
 
-```{r p1}
+
+```r
 dats=dat[dat$age>0&dat$vegn=="Peninsula Granite Fynbos - South"&dat$id%in%rd,] 
 
 ggplot(dats,aes(x=age,y=ndvi,group=id))+
   geom_line(size=.2,alpha=.5)
-  stat_smooth(fill = "grey50",aes(group = 1),col="red")#+xlim(0, 30)
+```
 
+![plot of chunk p1](./PostFireTrajectories_files/figure-html/p1.png) 
+
+```r
+  stat_smooth(fill = "grey50",aes(group = 1),col="red")#+xlim(0, 30)
+```
+
+```
+## mapping: group = 1 
+## geom_smooth: colour = red, fill = grey50 
+## stat_smooth: method = auto, formula = y ~ x, se = TRUE, n = 80, fullrange = FALSE, level = 0.95, na.rm = FALSE 
+## position_identity: (width = NULL, height = NULL)
 ```
 
 
@@ -209,8 +279,4 @@ ggplot(dats,aes(x=age,y=ndvi,group=id))+
 
 
 
-```{r,purl,eval=FALSE,echo=FALSE,results='hide',messages=F,error=FALSE,background=T}
-## this chunk outputs a copy of this script converted to a 'normal' R file with comments
-purl("workflow/PostFireTrajectories/PostFireTrajectories.Rmd",
-     documentation=2,output = "workflow/PostFireTrajectories/PostFireTrajectories.R", quiet = TRUE) 
-```
+
