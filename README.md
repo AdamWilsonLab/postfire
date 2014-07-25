@@ -12,8 +12,8 @@ The workshop will consist primarily of stepping through example code that explor
 The repository is structured as follows:
 
 * **workflows:**       
-  * [1_DataPrep](workflow/1_DataPrep/DataPrep.md)
-  * [2_SolarRadiation](workflow/1_SolarRadiation/SolarRadiation.md)
+  * [1_DataPrep](workflow/1_Data/DataPrep.html)
+  * [2_SolarRadiation](workflow/1_SolarRadiation/SolarRadiation.html)
 *  **functions:**  Various functions that will be used by scripts.
 *  **data:**  Datasets used in analyses
 * **output:** Temporary output from analysis
