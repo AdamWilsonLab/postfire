@@ -13,26 +13,23 @@ lapply(libs, require, character.only=T)
 
 ### Working directory (should be the root of the repository)
 # "USER" for Mac
-if (Sys.getenv("USER")=='adamw') setwd("/Users/adamw/repos/postfire") 
-# "USERNAME" for PC
+Sys.getenv()
+if (Sys.getenv("USER")=='adamw') {
+  setwd("/Users/adamw/repos/postfire") 
+  ## path to shared Dropbox folder that has the source data
+  ## Never write anythiing to this folder!
+  datadir="/Users/adamw/Dropbox/Postfire_workshop/Data/"
+  ## bath to GRASS executables
+  gisbase="/Applications/GRASS-6.4.app/Contents/MacOS"
+  ## Machine details
+  ncores=3   # the number of cores you want to use for parallel processing
+}  
+  
+  # "USERNAME" for PC
 if (Sys.getenv("USERNAME")=='whoeveryouare') setwd ("C:/") 
 
-## path to shared Dropbox folder that has the source data
-## Never write anythiing to this folder!
-datadir="/Users/adamw/Dropbox/Postfire_workshop/Data/"
 
-## temporary working directory
-## this is where temporary files will be written
-tmpdir="data/tmp"
-if(!file.exists(tmpdir)) dir.create(tmpdir)
-
-## Machine details
-ncores=3   # the number of cores you want to use for parallel processing
 registerDoMC(ncores)
-
-## bath to GRASS executables
-gisbase="/Applications/GRASS-6.4.app/Contents/MacOS"
-
 
 #########################################
 ## Package settings
@@ -46,7 +43,7 @@ htmlcap = function(before, options, envir) {if(!before) {
   paste('<p class="caption">',options$htmlcap,"</p>",sep="")
 }
 }
-opts_knit$set(root.dir=getwd(),cache=T,base.url = NULL,htmlcap=htmlcap)
+opts_knit$set(root.dir=getwd(),cache=T,base.url = NULL,htmlcap=htmlcap,purl = hook_purl)
 
 ########################################
 ### Define graphical parameters
@@ -60,3 +57,8 @@ cndvi=function(br=0.2,c1=c("darkgrey","burlywood4"),c2=c("burlywood4","darkgreen
 }
 ndvi.colors=cndvi()$col
 
+
+presentation_theme <- theme_gray()+
+  theme(text = element_text(size = 18)) 
+  
+theme_set(presentation_theme)

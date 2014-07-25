@@ -1,7 +1,7 @@
 #' ---
 #' title: "DataPrep"
 #' author: "Jasper Slingsby & Adam M. Wilson"
-#' date: "July 22, 2014"
+#' date: "`r format(Sys.time(), '%d %B, %Y')`"
 #' output:
 #'   html_document:
 #'     toc: true
@@ -10,7 +10,7 @@
 #' ---
 #' 
 #' 
-## ----setup,echo=F,cache=F,results='hide',message=FALSE-------------------
+## ----setup1,echo=F,cache=F,results='hide',message=FALSE------------------
 ##  Source the setup file
 source("../1_setup.R")
 
@@ -46,8 +46,9 @@ if(!file.exists(rvrfile))
 ## read it back in and 'factorize' it
 rvr=raster(rvrfile)
 rvr=as.factor(rvr)
+rv_meta$code=as.character(rv_meta$code)
 levels(rvr)=rv_meta[levels(rvr)[[1]]$ID,]
-#levelplot(rvr,col.regions=rainbow(nrow(rv_meta),start=.3))
+levelplot(rvr,col.regions=rainbow(nrow(rv_meta),start=.3))
 
 #' 
 #' Count number of veg types for each cell (i.e. ID mixed cells)
@@ -113,7 +114,11 @@ names(rfi)=paste0("Fire_",years)
 
 #' 
 ## ----fireplot------------------------------------------------------------
-levelplot(rfi[[30:40]],scales=list(draw=F),at=c(0,0.5,1),col.regions=c("transparent","red"),auto.key=F,maxpixels=1e4)
+gplot(rfi[[30:40]]) + 
+  geom_tile(aes(fill = as.factor(value))) +
+  facet_wrap(~ variable) +
+        scale_fill_manual(values = c("white", "red"),breaks=c(0,1),limits=c(0,1),labels=c("No Fire","Fire")) +
+          coord_equal()
 
 #' 
 #' 
@@ -208,9 +213,9 @@ l7
 #' And a plot of a few different years:
 #' 
 ## ----landsatplot, fig.width=7, fig.height=6------------------------------
-tyears=2002:2005
+tyears=2005:2010
 yearind=which(getZ(l5)%in%tyears)
-levelplot(l5[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,layout=c(length(yearind),1),scales=list(draw=F),maxpixels=1e4)
+levelplot(l5[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,layout=c(length(yearind),1),scales=list(draw=F),maxpixels=1e5)
 
 #' 
 #' 
@@ -324,7 +329,9 @@ tdatl=melt(tdat,id.var="id")
 tdatln=cbind.data.frame(lab=levels(tdatl$variable),do.call(rbind,strsplit(as.character(levels(tdatl$variable)),"_")))
 tdatl[,c("type","year")]=tdatln[match(tdatl$variable,tdatln$lab),2:3]
 tdatl=dcast(tdatl,id+year~type,value.var="value")
-
+## convert year from a factor to numeric
+tdatl$year=as.numeric(as.character(tdatl$year))
+## check it out
 kable(head(tdatl),row.names = F)
 
 #' 
@@ -333,8 +340,8 @@ kable(head(tdatl),row.names = F)
 save(sdat,tdat,tdatl,file="data/modeldata.Rdata")
 
 #' 
-## ----,echo=FALSE,results='hide',messages=FALSE,error=FALSE,background=T----
-## this chunk outputs a copy of this script converted to a 'normal' R file with comments
+## ----,echo=FALSE,results='hide',messages=FALSE,error=FALSE---------------
+## this chunk outputs a copy of this script converted to a 'normal' R file with all the text and chunk information commented out
 purl("workflow/1_Data/DataPrep.Rmd",documentation=2,output="workflow/1_Data/DataPrep.R", quiet = TRUE)
 
 #' 

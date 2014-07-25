@@ -1,6 +1,6 @@
 # DataPrep
 Jasper Slingsby & Adam M. Wilson  
-July 22, 2014  
+`r format(Sys.time(), '%d %B, %Y')`  
 
 
 
@@ -8,7 +8,7 @@ July 22, 2014
 This script assembles various environmental layers into a common 30m grid for the Cape Peninsula.  It also calculates veg age based on the fire data.
 
 ## Index raster
-Create a raster of an index grid (`ig`) to spatially connect all the datasets.
+Import raster of an index grid (`ig`) to spatially connect all the datasets.
 
 ```r
 ig=raster(paste0(datadir,"clean/indexgrid_landsat_30m.grd")) 
@@ -48,9 +48,12 @@ if(!file.exists(rvrfile))
 ## read it back in and 'factorize' it
 rvr=raster(rvrfile)
 rvr=as.factor(rvr)
+rv_meta$code=as.character(rv_meta$code)
 levels(rvr)=rv_meta[levels(rvr)[[1]]$ID,]
-#levelplot(rvr,col.regions=rainbow(nrow(rv_meta),start=.3))
+levelplot(rvr,col.regions=rainbow(nrow(rv_meta),start=.3))
 ```
+
+![plot of chunk veg2](./DataPrep_files/figure-html/veg2.png) 
 
 Count number of veg types for each cell (i.e. ID mixed cells)
 
@@ -139,7 +142,11 @@ names(rfi)=paste0("Fire_",years)
 
 
 ```r
-levelplot(rfi[[30:40]],scales=list(draw=F),at=c(0,0.5,1),col.regions=c("transparent","red"),auto.key=F,maxpixels=1e4)
+gplot(rfi[[30:40]]) + 
+  geom_tile(aes(fill = as.factor(value))) +
+  facet_wrap(~ variable) +
+        scale_fill_manual(name="Fire Status",values = c("white", "red"),breaks=c(0,1),limits=c(0,1),labels=c("No Fire","Fire")) +
+          coord_equal()+ theme(axis.ticks = element_blank(), axis.text = element_blank())
 ```
 
 ![plot of chunk fireplot](./DataPrep_files/figure-html/fireplot.png) 
@@ -271,9 +278,9 @@ And a plot of a few different years:
 
 
 ```r
-tyears=2002:2005
-yearind=which(getZ(l5)%in%tyears)
-levelplot(l5[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,layout=c(length(yearind),1),scales=list(draw=F),maxpixels=1e4)
+tyears=2005:2010
+yearind=which(getZ(l7)%in%tyears)
+levelplot(l7[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,layout=c(length(yearind),1),scales=list(draw=F),maxpixels=1e5)
 ```
 
 ![plot of chunk landsatplot](./DataPrep_files/figure-html/landsatplot.png) 
@@ -424,20 +431,22 @@ tdatl=melt(tdat,id.var="id")
 tdatln=cbind.data.frame(lab=levels(tdatl$variable),do.call(rbind,strsplit(as.character(levels(tdatl$variable)),"_")))
 tdatl[,c("type","year")]=tdatln[match(tdatl$variable,tdatln$lab),2:3]
 tdatl=dcast(tdatl,id+year~type,value.var="value")
-
+## convert year from a factor to numeric
+tdatl$year=as.numeric(as.character(tdatl$year))
+## check it out
 kable(head(tdatl),row.names = F)
 ```
 
 
 
-|    id|year | age|   ndvi|
-|-----:|:----|---:|------:|
-| 83925|1984 | -23| 0.2790|
-| 83925|1985 | -24| 0.5820|
-| 83925|1986 | -25| 0.4830|
-| 83925|1987 | -26| 0.3160|
-| 83925|1988 | -27| 0.3080|
-| 83925|1989 | -28| 0.4155|
+|    id| year| age|   ndvi|
+|-----:|----:|---:|------:|
+| 83925| 1984| -23| 0.2790|
+| 83925| 1985| -24| 0.5820|
+| 83925| 1986| -25| 0.4830|
+| 83925| 1987| -26| 0.3160|
+| 83925| 1988| -27| 0.3080|
+| 83925| 1989| -28| 0.4155|
 
 Save it as an R data object for later use.
 
