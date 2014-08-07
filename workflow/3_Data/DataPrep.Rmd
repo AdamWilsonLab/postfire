@@ -77,7 +77,7 @@ fi$STARTDATE[which(fi$STARTDATE==196201001)]=19620101#fix an anomalous date...
 ## note the if(!file.exists)) first checks if the file already exists so you don't rerun this everytime you run the script.
 ficfile="data/fires_number_1962to2007_landsat_30m.tif"
 if(!file.exists(ficfile))
-    fic=rasterize(fi, ig, field=c("STARTDATE"), fun="count",file=ficfile) 
+    fic=rasterize(fi, ig, field=c("YEAR"), fun="count",file=ficfile) 
 
 fic=raster(ficfile)
 ```
@@ -99,7 +99,7 @@ rfi=foreach(y=years,.combine=stack,.packages="raster") %dopar% {
   if(sum(fi$YEAR==y)==0) 
       td= raster(extent(ig),res=res(ig),vals=0)
   ## if there is >0 fires, then rasterize it to the grid
-  if(sum(fi$YEAR==y)>0) 
+  if(sum(fi$YEAR==y)>0)
       td=rasterize(fi[which(fi$YEAR==y),],ig, field="YEAR", fun="count", background=0) 
   ## return the individual raster
   return(td)
@@ -225,7 +225,10 @@ tl=melt(list(l4=getZ(l4),l5=getZ(l5),l7=getZ(l7),l8=getZ(l8)))
 xyplot(as.factor(L1)~value,data=tl,type="l",groups=as.factor(L1),asp=.15,lwd=5,ylab="LANDSAT Satellite",xlab="Year")
 ```
 
-There are several ways these data could be combined.  The individual scenes could be assessed for quality (cloud contamination, etc.), sensors could be weighted by sensor quality (newer=better?).  Today, we'll simply take the maximum of available data for each year.  
+There are several ways these data could be combined.  
+The individual scenes could be assessed for quality (cloud contamination, etc.), 
+sensors could be weighted by sensor quality (newer=better?).  
+Today, we'll simply take the mean of available data for each year.  
 
       What are the limitations of this approach? 
 
@@ -243,7 +246,7 @@ if(!file.exists(ndvifile)){
     # drop LANDSATs with no data for this year
     w2=w1[!is.na(w1)]
     # make a stack with the desired year for all sensors that have data
-    tndvi=max(stack(lapply(1:length(w2),function(i) {
+    tndvi=mean(stack(lapply(1:length(w2),function(i) {
         print(i)
       td=get(names(w2[i]))
       return(td[[w2[i]]])

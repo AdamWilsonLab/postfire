@@ -5,7 +5,20 @@
 
 ########################################
 ### Load libraries
-libs=c("doMC","rasterVis","rgdal","reshape2","sp","knitr","rmarkdown","spgrass6","ggplot2","dplyr","minpack.lm")
+libs=c(
+  "doMC",
+  "rasterVis",
+  "rgdal",
+  "reshape2",
+  "sp",
+  "knitr",
+  "rmarkdown",
+  "spgrass6",
+  "ggplot2",
+  "dplyr",
+  "minpack.lm",
+  "rjags")
+
 lapply(libs, require, character.only=T)
 
 ########################################

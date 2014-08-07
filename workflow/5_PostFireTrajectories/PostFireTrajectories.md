@@ -1,7 +1,6 @@
 # PostFireTrajectories
 Adam M. Wilson  
-`r format(Sys.time(), "%d %B, %Y")`  
-
+`r format(Sys.time(), "%B %d, %Y")`  
 
 
 
@@ -157,7 +156,8 @@ Let's look at all those pixels through time:
 ```r
 ggplot(dat[dat$id%in%rd,],aes(x=as.numeric(year),y=ndvi,group=id))+
   geom_line(size=.2,alpha=.1)+
-  stat_smooth(fill = "grey50",aes(group = 1),col="red")
+  stat_smooth(fill = "grey50",aes(group = 1),col="red")+
+  coord_fixed(ratio = 80)
 ```
 
 ```
@@ -170,7 +170,7 @@ And vs. cell age
 
 ```r
 ggplot(dat[dat$age>=0&dat$id%in%rd,],aes(x=age,y=ndvi,group=id))+
-  geom_line(size=.2,alpha=.1)+facet_wrap(~vegn,ncol=1)+
+  geom_line(size=.2,alpha=.1)+facet_wrap(~vegn,nrow=1)+
   stat_smooth(fill = "grey50",aes(group = 1),col="red")#+xlim(0, 30)
 ```
 
@@ -185,13 +185,14 @@ ggplot(dat[dat$age>=0&dat$id%in%rd,],aes(x=age,y=ndvi,group=id))+
 
 # Non-linear model fitting
 
-The model I've been using (minus the seasonal component) is:
+The full model I've been using (minus the seasonal component) says that the expected NDVI at some location $i$ in time $t$ comes from a normal distribution as follows:
 
 $\text{NDVI}_{i,t}\sim\mathcal{N}(\mu_{i,t},\sigma)$ 
 
-where $\mu$ is
+where the mean ($\mu$) is a nonlinear function including the post-fire NDVI value ($\alpha$), the potential increase in NDVI ($\gamma$), and the post-fire recovery rate ($\lambda$) as follows:
 
 $\mu_{i,t}=\alpha_i+\gamma_i\Big(1-e^{-\frac{age_{i,t}}{\lambda_i}}\Big)$
+
 
 # Simulate data
 Often the best way to learn about a new model is to simulate data with known properties (parameters), perhaps add some noise, and then try to get those parameters back using the model.  First make a function that simulates a recovery trajectory.
@@ -207,7 +208,7 @@ cfun=function(ps,age=x){
   }
 ```
 
-Now let's use it to make up some _data_.
+Now let's use it to make up some _"data"_.
 
 ```r
 ## Assign recovery parameters
@@ -234,7 +235,7 @@ Feel free to fiddle with the parameters above (alpha, gamma, and lambda) to see 
   What do each of the parameters do?
 
 
-Now let's explore what the parameters do a little more systematically by making a full 'grid' that covers the reasonable variation of each parameter.
+Now let's explore what the parameters do a little more systematically by making a matrix of parameter space including all reasonable variation.
 
 ```r
 pspace=expand.grid(alpha = seq(0.1,0.3, len = 3),gamma = seq(0.1,0.5, len = 3), lambda = seq(1, 25, len = 10),sigma=0.05)
@@ -266,7 +267,7 @@ Remember the formula?
 
 $\mu_{i,t}=\alpha_i+\gamma_i\Big(1-e^{-\frac{age_{i,t}}{\lambda_i}}\Big)$
 
-Since this is a slightly more complicated formula than a standard linear regression, we can't just use `lm`/`glm`, etc.  There are a few approaches to fitting this model.  We'll start with a numeric search for values that minimize the residual squared errors using the `nlsLM()` function in the `minpack.lm` package.  First we need to define the model in as a 'formula
+Since this is a slightly more complicated formula than a standard linear regression, we can't just use `lm`/`glm`, etc.  There are a few approaches to fitting this model.  We'll start with a numeric search (the _Levenberg-Marquardt_ algorithm) for values that minimize the residual squared errors with the `nlsLM()` function in the `minpack.lm` package. First we need to define the model in as a 'formula
 
 
 ```r
@@ -318,15 +319,15 @@ summary(m)
 ## 
 ## Parameters:
 ##        Estimate Std. Error t value Pr(>|t|)    
-## alpha    0.2084     0.0264    7.89  4.5e-12 ***
-## gamma    0.4916     0.0258   19.05  < 2e-16 ***
-## lambda   3.7126     0.3480   10.67  < 2e-16 ***
+## alpha    0.2149     0.0271    7.92    4e-12 ***
+## gamma    0.4854     0.0264   18.36   <2e-16 ***
+## lambda   3.9014     0.3847   10.14   <2e-16 ***
 ## ---
 ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ## 
-## Residual standard error: 0.0488 on 97 degrees of freedom
+## Residual standard error: 0.0511 on 97 degrees of freedom
 ## 
-## Number of iterations to convergence: 4 
+## Number of iterations to convergence: 3 
 ## Achieved convergence tolerance: 1.49e-08
 ```
 
@@ -341,9 +342,9 @@ kable(cbind(True=unlist(ps)[1:3],Estimated=coef(m)))
 
 |       |   True| Estimated|
 |:------|------:|---------:|
-|alpha  | 0.2000|    0.2084|
-|gamma  | 0.5000|    0.4916|
-|lambda | 4.0000|    3.7126|
+|alpha  | 0.2000|    0.2149|
+|gamma  | 0.5000|    0.4854|
+|lambda | 4.0000|    3.9014|
 
 And plot the simulated (noisy) data with the fitted value.
 
@@ -355,21 +356,22 @@ lines(fitted(m)~x,col="red", lwd=4)
 
 ![plot of chunk unnamed-chunk-8](./PostFireTrajectories_files/figure-html/unnamed-chunk-8.png) 
 
-     Now explore changing the parameters (in the `ps` object) and seeing if the model is able to recover the right values.  How does it vary when you increase _sigma_?
+     Now explore changing the parameters (in the `ps` object) and seeing if the model is able to recover the right values.  How does it vary when you increase $\sigma$?
 
 # Check out the _real_ data!
 
 ## Create a subset
-To make things run faster while we're experimenting, let's subset the data,  For example, drop ages before the first fire (which are censored and uncertain), keep only fires in SILVERMINE, and select only "Peninsula Granite Fynbos - South"
+To make things run faster while we're experimenting, let's subset the data,  For example, drop ages before the first fire (which are censored and uncertain), keep only fires in SILVERMINE, and select only "Peninsula Sandstone Fynbos"
 
 
 Let's look at that timeseries for all points in the subsetted region.  
 
 ```r
-dats=dat[dat$vegn=="Peninsula Granite Fynbos - South"&dat$id%in%rd,] 
+dats=dat[dat$vegn=="Peninsula Sandstone Fynbos"&dat$id%in%rd,] 
+dats=dats[!is.na(dats$id),]
 
-ggplot(dats,aes(x=age,y=ndvi,group=id))+
-  geom_line(size=.2,alpha=.2)
+ggplot(dats[dats$year>2000,],aes(x=age,y=ndvi,group=id))+
+  geom_line(size=.1,alpha=.1)
 ```
 
 ![plot of chunk p1](./PostFireTrajectories_files/figure-html/p1.png) 

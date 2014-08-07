@@ -1,4 +1,4 @@
-// CapePointLANDSAT 
+// CapePointLANDSAT_annual 
 
 //  Specify destination and run name
 var drawmap=true;    // flag indicating whether to add the images to the map (below) or not.
