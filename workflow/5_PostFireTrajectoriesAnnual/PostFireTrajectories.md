@@ -1,25 +1,8 @@
----
-title: "PostFireTrajectories"
-author: "Adam M. Wilson"
-date: 'August 11, 2014'
-output:
-  html_document:
-    keep_md: yes
-    number_sections: yes
-    theme: cerulean
-    toc: yes
-  pdf_document:
-    toc: yes
----
+# PostFireTrajectories
+Adam M. Wilson  
+`r format(Sys.time(), "%B %d, %Y")`  
 
 
-```
-## Warning: cannot open file '../setup.R': No such file or directory
-```
-
-```
-## Error: cannot open the connection
-```
 
 
 # Data
@@ -32,30 +15,23 @@ rv_meta=read.csv("data/vegtypecodes.csv")
 sdat$vegn=rv_meta$code[match(sdat$veg,rv_meta$ID)]
 
 ## now create a single monster table with all the data
-dat=cbind.data.frame(tdatl,sdat[match(tdatl$id,sdat$id),])
-```
-
-```
-## Error: object 'tdatl' not found
-```
-
-```r
+dat=cbind.data.frame(tdat,sdat[match(tdat$id,sdat$id),])
 ## drop negative ages (time before first fire) for now
 dat=dat[dat$age>=0,]
-```
-
-```
-## Error: object 'dat' not found
-```
-
-```r
 ## look at the table
 kable(head(dat),row.names=F)
 ```
 
-```
-## Error: error in evaluating the argument 'x' in selecting a method for function 'head': Error: object 'dat' not found
-```
+
+
+|    id| year| age|   ndvi|    id|      x|       y| veg| cover|  tmax|  tmin| janrad| julrad| aspect|   dem|   tpi| firecount|vegn                         |
+|-----:|----:|---:|------:|-----:|------:|-------:|---:|-----:|-----:|-----:|------:|------:|------:|-----:|-----:|---------:|:----------------------------|
+| 83925| 2000|   0| 0.3845| 83925| 260445| 6243525|  18|     1| 28.19| 9.413|   8902|   3029|  2.135| 152.5| 7.934|         1|Peninsula Shale Renosterveld |
+| 83925| 2001|   1| 0.5050| 83925| 260445| 6243525|  18|     1| 28.19| 9.413|   8902|   3029|  2.135| 152.5| 7.934|         1|Peninsula Shale Renosterveld |
+| 83925| 2002|   2| 0.6160| 83925| 260445| 6243525|  18|     1| 28.19| 9.413|   8902|   3029|  2.135| 152.5| 7.934|         1|Peninsula Shale Renosterveld |
+| 83925| 2003|   3| 0.4260| 83925| 260445| 6243525|  18|     1| 28.19| 9.413|   8902|   3029|  2.135| 152.5| 7.934|         1|Peninsula Shale Renosterveld |
+| 83925| 2004|   4| 0.6460| 83925| 260445| 6243525|  18|     1| 28.19| 9.413|   8902|   3029|  2.135| 152.5| 7.934|         1|Peninsula Shale Renosterveld |
+| 83925| 2005|   5| 0.6435| 83925| 260445| 6243525|  18|     1| 28.19| 9.413|   8902|   3029|  2.135| 152.5| 7.934|         1|Peninsula Shale Renosterveld |
 
 
 ## Change through time
@@ -87,7 +63,7 @@ points(sdat[match(d$cell,sdat$id),c("x","y")],pch=16)
 text(sdat[match(d$cell,sdat$id),c("x","y")],labels=d$cell,pos=4)
 ```
 
-![plot of chunk pickpoints](figure/pickpoints.png) 
+![plot of chunk pickpoints](./PostFireTrajectories_files/figure-html/pickpoints.png) 
 
 To select points for plotting, we can use the `click` function (in Raster) that allows you to pick points on the map.  First we need to plot the data using the plot() command. Then run the `click` command using the `ig` grid so the cell id's are returned. 
 
@@ -110,8 +86,10 @@ ggplot(dat[dat$id%in%d$cell,],
 ```
 
 ```
-## Error: object 'dat' not found
+## Warning: Removed 6 rows containing missing values (geom_path).
 ```
+
+![plot of chunk unnamed-chunk-1](./PostFireTrajectories_files/figure-html/unnamed-chunk-1.png) 
 
 And as a function of age
 
@@ -123,8 +101,15 @@ ggplot(dat[dat$id%in%d$cell,],
 ```
 
 ```
-## Error: object 'dat' not found
+## geom_smooth: method="auto" and size of largest group is <1000, so using loess. Use 'method = x' to change the smoothing method.
 ```
+
+```
+## Warning: Removed 7 rows containing missing values (stat_smooth).
+## Warning: Removed 2 rows containing missing values (geom_path).
+```
+
+![plot of chunk unnamed-chunk-2](./PostFireTrajectories_files/figure-html/unnamed-chunk-2.png) 
 
   Explore the NDVI data for various pixels by changing `nclicks` above and selecting new points on the map.  Remember that we subsetted the dat dataframe to include only 'natural vegetation' so you may select a point with no data.  
 
@@ -169,7 +154,7 @@ ggplot(sdat[sdat$id%in%rd,], aes(x=x,y=y))+
    geom_tile(aes(fill=dem))
 ```
 
-![plot of chunk subset](figure/subset.png) 
+![plot of chunk subset](./PostFireTrajectories_files/figure-html/subset.png) 
 
 Let's look at all those pixels through time:
 
@@ -181,8 +166,10 @@ ggplot(dat[dat$id%in%rd,],aes(x=as.numeric(year),y=ndvi,group=id))+
 ```
 
 ```
-## Error: object 'dat' not found
+## geom_smooth: method="auto" and size of largest group is >=1000, so using gam with formula: y ~ s(x, bs = "cs"). Use 'method = x' to change the smoothing method.
 ```
+
+![plot of chunk regextract](./PostFireTrajectories_files/figure-html/regextract.png) 
 
 And vs. cell age
 
@@ -193,8 +180,13 @@ ggplot(dat[dat$age>=0&dat$id%in%rd,],aes(x=age,y=ndvi,group=id))+
 ```
 
 ```
-## Error: object 'dat' not found
+## geom_smooth: method="auto" and size of largest group is >=1000, so using gam with formula: y ~ s(x, bs = "cs"). Use 'method = x' to change the smoothing method.
+## geom_smooth: method="auto" and size of largest group is >=1000, so using gam with formula: y ~ s(x, bs = "cs"). Use 'method = x' to change the smoothing method.
+## geom_smooth: method="auto" and size of largest group is >=1000, so using gam with formula: y ~ s(x, bs = "cs"). Use 'method = x' to change the smoothing method.
+## geom_smooth: method="auto" and size of largest group is >=1000, so using gam with formula: y ~ s(x, bs = "cs"). Use 'method = x' to change the smoothing method.
 ```
+
+![plot of chunk unnamed-chunk-3](./PostFireTrajectories_files/figure-html/unnamed-chunk-3.png) 
 
 # Non-linear model fitting
 
@@ -214,47 +206,36 @@ Let's look at that timeseries for all points in the subsetted region.
 
 ```r
 dats=dat[dat$vegn=="Peninsula Sandstone Fynbos"&dat$id%in%rd,] 
-```
-
-```
-## Error: object 'dat' not found
-```
-
-```r
 dats=dats[!is.na(dats$id),]
-```
 
-```
-## Error: object 'dats' not found
-```
-
-```r
 ggplot(dats,aes(x=age,y=ndvi,group=id))+
   geom_line(size=.1,alpha=.1)
 ```
 
 ```
-## Error: object 'dats' not found
+## Warning: Removed 14320 rows containing missing values (geom_path).
 ```
+
+![plot of chunk p1](./PostFireTrajectories_files/figure-html/p1.png) 
 
 Woah, that's messy.  Could there be any information there?  Let's see what happens when we fit all pixels at once.
 
 
 ```r
+## Assign starting values for all parameters.  The search has to start somewhere...
+start=list(alpha=0.2,gamma=0.4,lambda=4)
+## define lower and upper bounds for the parameters to limit the search
+lower=c(0,0,0)
+upper=c(1,1,10)
+## other nls control settings
+ctl=nls.control(maxiter = 150,minFactor=1e-10)
+## Assign ages at which to evaluate the model
+x=seq(0,30,len=100)
+
+
 sform=as.formula(ndvi~alpha+gamma*(1-exp(-age/lambda)))
 m <- nlsLM(sform, data =dats, start = start, trace = T,control=ctl,lower=lower,upper=upper)
-```
-
-```
-## Error: object 'dats' not found
-```
-
-```r
 summary(m)
-```
-
-```
-## Error: error in evaluating the argument 'object' in selecting a method for function 'summary': Error: object 'm' not found
 ```
 
 Plot it:
@@ -263,25 +244,20 @@ Plot it:
 ```r
 ## make a new dataframe of predictions from the model
 dpred=cbind.data.frame(ndvi=predict(m,newdata=data.frame(age=x)),age=x,id=1)
-```
 
-```
-## Error: error in evaluating the argument 'object' in selecting a method for function 'predict': Error: object 'm' not found
-```
-
-```r
 ggplot(dats,aes(x=age,y=ndvi,group=id))+
   geom_line(size=.2,alpha=.2)+
   geom_line(data=dpred,aes(y=ndvi,x=age),colour="red",size=2)
 ```
 
 ```
-## Error: object 'dats' not found
+## Warning: Removed 14320 rows containing missing values (geom_path).
 ```
+
+![plot of chunk fitmodel2](./PostFireTrajectories_files/figure-html/fitmodel2.png) 
 
 Do you believe it?  Useful?  How to improve upon this approach?  What other factors are important?
 
-# Process pixel by pixel
 
 
 
