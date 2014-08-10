@@ -1,11 +1,11 @@
 // CapePointLANDSAT_daily
 
 //  Specify destination and run name
-var drawmap=true;    // flag indicating whether to add the images to the map (below) or not.
-var exportfiles=false; // flag indicating whether to actually initiate the export, leve this false while testing
+var drawmap=false;    // flag indicating whether to add the images to the map (below) or not.
+var exportfiles=true; // flag indicating whether to actually initiate the export, leve this false while testing
 
 var driveFolder="ee_ZA_output"; // name of personal google drive folder to export to (this must be unique)
-var run="fullnosfilter"; // any string to indicate a version.  I typically use a hash from my git repository
+var run="eded7b5a"; // any string to indicate a version.  I typically use a hash from my git repository
 var verbose=true;     // print various status messages to the console (on the right)
 
 // limit overall date range  (only dates in this range will be included)
@@ -89,7 +89,7 @@ for (var i=0; i<prods.length; i ++) {
       if(dates.length===0) continue;
 
       // create the first band of the final multi-band image
-      var allndvi = col.map(fNDVI).reduce(ee.Reducer.first())
+      var allndvi = col.map(fNDVI).max()
 
 //      print(allndvi.getInfo())   
         
@@ -99,7 +99,7 @@ for (var i=0; i<prods.length; i ++) {
       var tdate=new Date(dates[y])
 //      print(tdate)
           var tfilter2=ee.Filter.metadata('DATE_ACQUIRED','equals',dates[y])
-          var tndvi=col.filter(tfilter2).map(fNDVI).mean()
+          var tndvi=col.filter(tfilter2).map(fNDVI).max()
  //         print(tndvi.getInfo())
           var allndvi = allndvi.addBands(tndvi);
 
