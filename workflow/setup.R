@@ -38,6 +38,18 @@ if (Sys.getenv("USER")=='adamw') {
   ncores=3   # the number of cores you want to use for parallel processing
 }  
   
+Sys.getenv()
+if (Sys.getenv("USER")=='jasper') {
+  setwd("/Users/jasper/GIT/Postfire") 
+  ## path to shared Dropbox folder that has the source data
+  ## Never write anythiing to this folder!
+  datadir="/Users/jasper/Dropbox/Shared/Postfire_workshop/data"
+  ## bath to GRASS executables
+  gisbase="/Users/jasper/Grassdata"
+  ## Machine details
+  ncores=3   # the number of cores you want to use for parallel processing
+}  
+
   # "USERNAME" for PC
 if (Sys.getenv("USERNAME")=='whoeveryouare') setwd ("C:/") 
 
