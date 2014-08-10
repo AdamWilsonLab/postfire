@@ -1,0 +1,179 @@
+---
+title: "Modeling PostFireTrajectories"
+author: "Adam M. Wilson"
+date: '`r format(Sys.time(), "%B %d, %Y")`'
+output:
+  html_document:
+  keep_md: yes
+number_sections: yes
+theme: cerulean
+toc: yes
+pdf_document:
+  toc: yes
+---
+
+```{r,setup,echo=F,cache=T,results='hide',message=FALSE}
+##  First some set up
+source("../1_setup.R")
+ig=raster(paste0(datadir,"clean/indexgrid_landsat_30m.grd")) 
+```
+
+
+# Data
+
+Load the model data we made in [DataPrep.R](../1_Data/DataPrep.R)
+```{r loaddata,results='asis'}
+load("data/modeldata.Rdata")
+rv_meta=read.csv("data/vegtypecodes.csv")
+sdat$vegn=rv_meta$code[match(sdat$veg,rv_meta$ID)]
+rownames(sdat)=sdat$id
+```
+
+We know have two data frames we'll use in the modeling. The first is the spatial data:
+```{r sdat, results='asis'}
+kable(head(sdat),row.names=F)
+```
+
+And the second is the temporal data:
+```{r tdat, results='asis'}
+kable(head(tdat),row.names=F)
+```
+
+#dat=cbind.data.frame(tdat,sdat[match(tdat$id,sdat$id),])
+
+
+```{r CleanData}
+
+#ndvi=ndvi[!ndvi$id%in%names(tapply(ndvi$agemonth,ndvi$id,function(x) max(x)<36))[tapply(ndvi$agemonth,ndvi$id,function(x) max(x)<36)],] #drop records with no data less than 3 years old
+#ndvi=ndvi[!ndvi$id%in%names(table(ndvi$id))[table(ndvi$id)<2*12*3],] #drop records with less than 3 years of data
+
+## Keep only fynbos veg types
+sdat=sdat[grepl("Fynbos",sdat$vegn),]
+
+#drop obs of unknown age or ndvi or with no data in sdat
+tdat=tdat[!is.na(tdat$age)&!is.na(tdat$ndvi)&tdat$id%in%sdat$id,] 
+
+## drop negative ages (time before first fire) for now
+tdat=tdat[tdat$age>=0,]
+
+########################
+#### Set model name for naming objects below and create directory to hold output
+mname="v1"
+if(!file.exists(paste("output/",mname,sep=""))) dir.create(paste("output/",mname,sep=""),recursive=T)
+
+### subset dataset
+holdout=0.90  #percent to hold out for validation
+s=sort(sample(unique(sdat$id),round(length(unique(sdat$id))*(1-holdout)))); length(s)
+write.csv(s,paste("output/",mname,"/",mname,"_subset.csv",sep=""),row.names=F)
+sdat$subset=factor(ifelse(sdat$id%in%unique(tdat$id),ifelse(sdat$id%in%s,"Model Fitting","Validation"),"Prediction"),levels=c("Model Fitting","Validation","Prediction"),ordered=T)
+```
+
+## Create dummy variables for vegetation (and any other factors)
+```{r dummy,results='asis'}
+sdat$veg=as.factor(sdat$veg)
+lm1=lm(dem~veg,data=sdat)
+tveg=model.matrix(lm1)[,-1]
+
+kable(head(tveg))
+```
+
+```{r scale}
+## Select and scale environmental data
+envars=c("dem","tpi","tmax","tmin")
+
+scaled=scale(as.matrix(sdat[,envars]))
+env_full=cbind(intercept=1,scaled,tveg)
+
+### Save the scaling parameters to convert fitted coefficients back to metric units later
+beta.mu=c(intercept=0,attr(scaled,"scaled:center"),veg11=0,veg14=0,veg15=0,veg16=0,veg17=0)
+beta.sd=c(intercept=1,attr(scaled,"scaled:scale"),veg11=1,veg14=1,veg15=1,veg16=1,veg17=1)
+rm(scaled)  #drop the scaled data
+```
+
+
+## Set up the data for modeling
+```{r modeldata}
+tdat_full=tdat
+tdat=tdat[tdat$id%in%s,]; gc() 
+
+## create two env frames for fitting and prediction
+env=env_full[rownames(env_full)%in%s,]
+  
+### Drop missing values
+omit=unique(tdat$id)[as.numeric(which(is.na(apply(env,1,sum))))]; omit
+if(length(omit)>0){
+  env=env[!rownames(env)%in%omit,]
+  tdat=tdat[!tdat$id%in%omit,]
+}
+
+## create new id that goes from 1 to nGrid
+tdat$id2=as.integer(as.factor(tdat$id)); gc()
+
+## Get counts
+nGrid=length(unique(tdat$id))            ;nGrid
+nTime=length(unique(tdat$year))          ;nTime
+nBeta=ncol(env)                          ;nBeta
+
+## Write data object
+data=list(
+  age=tdat$age,
+  ndvi=tdat$ndvi,
+  id=tdat$id2,
+  nObs=nrow(tdat),
+  env=env,
+  nGrid=nGrid,
+  nBeta=nBeta
+  )
+
+## Function to generate initial values
+gen.inits=function(nGrid,nBeta) { list(
+  ## spatial terms
+  alpha=runif(nGrid,0.1,0.5),
+  gamma=runif(nGrid,0.1,.9),
+  lambda=runif(nGrid,0.2,1),
+  ## spatial means
+  alpha.mu=runif(1,0.1,0.2),
+  ## priors  
+  gamma.beta=runif(nBeta,0,1),
+  gamma.tau=runif(1,1,5),
+  alpha.tau=runif(1,1,5),
+  lambda.beta=runif(nBeta,0,2),
+  lambda.tau=runif(1,0,2),
+  tau=runif(1,0,2)
+  )
+}
+
+## list of parameters to monitor (save)
+params=c("gamma.beta","gamma.sigma","alpha","alpha.mu","alpha.sigma","lambda.beta","lambda.sigma")
+
+### Save all data into Rdata object for model fitting
+save(data,gen.inits,s,sdat,beta.mu,beta.sd,envars,env_full,tdat_full,file=paste("output/",mname,"/",mname,"_inputdata.Rdata",sep=""))  #save it
+```
+
+
+# JAGS
+```{r jags}
+
+library(rjags)
+
+write.table(paste("Starting model ",mname," on ",date()),paste0("output/",mname,"ModelStart.txt"))
+
+## test compilation
+t1=system.time(m <<- jags.model(file="workflow/6_Modeling/Model.R",
+                             data=data,
+                             inits=gen.inits(data$nGrid,data$nBeta),
+                             n.chains=1,n.adapt=100))
+```
+
+### Collect 'Posterior Samples' and DIC
+```{r}
+t2=system.time(mc <<- coda.samples(m,params,n.iter=100))
+#dic=dic.samples(m,n.iter=10,type="pD")
+```
+
+### Save output
+```{r}
+save(m,mc,beta.mu,beta.sd,
+     file=paste("output/",mname,"/",mname,"_modeloutput.Rdata",sep=""))  
+```
+

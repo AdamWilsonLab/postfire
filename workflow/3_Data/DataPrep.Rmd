@@ -340,7 +340,9 @@ kable(head(tdatl),row.names = F)
 
 Save it as an R data object for later use.
 ```{r save}
-save(sdat,tdat,tdatl,file="data/modeldata.Rdata")
+## drop the 'wide' version
+tdat=tdatl
+save(sdat,tdat,file="data/modeldata.Rdata")
 ```
 
 ```{r,echo=FALSE,eval=FALSE,results='hide',messages=FALSE,error=FALSE}
