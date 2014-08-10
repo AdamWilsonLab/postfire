@@ -5,7 +5,7 @@ var drawmap=false;    // flag indicating whether to add the images to the map (b
 var exportfiles=true; // flag indicating whether to actually initiate the export, leve this false while testing
 
 var driveFolder="ee_ZA_output"; // name of personal google drive folder to export to (this must be unique)
-var run="eded7b5a"; // any string to indicate a version.  I typically use a hash from my git repository
+var run="bdff7a98"; // any string to indicate a version.  I typically use a hash from my git repository
 var verbose=true;     // print various status messages to the console (on the right)
 
 // limit overall date range  (only dates in this range will be included)
@@ -75,18 +75,28 @@ for (var i=0; i<prods.length; i ++) {
 
       var tname=prods[i].replace("LANDSAT/", ""); //extract make product name
 
-      // make an image collection, filter by time and space, and run fprocess()
+      // make an image collection, filter by time and space
       var col = ee.ImageCollection(prods[i])
-               .filterDate(datestart,datestop).filterBounds(studyArea);
+               .filterDate(datestart,datestop).filterBounds(studyArea)
+               .sort('DATE_ACQUIRED');
 
       // print(col.getInfo())
       // get list of years in this product
       var  dates=col.aggregate_array('DATE_ACQUIRED').getInfo()
+      
+    // keep only unique dates
+    var dates2 = [], l = dates.length;
+    for(var p=0; p<l; p++) {
+      for(var j=p+1; j<l; j++)
+            if (dates[p] === dates[j]) j = ++p;
+      dates2.push(dates[p]);
+    }
 
       print("Found "+dates.length+" Dates for "+tname+":");
-      print(dates)
+
+
       // if there is no images within the date range, skip it...
-      if(dates.length===0) continue;
+      if(dates2.length===0) continue;
 
       // create the first band of the final multi-band image
       var allndvi = col.map(fNDVI).max()
@@ -94,22 +104,22 @@ for (var i=0; i<prods.length; i ++) {
 //      print(allndvi.getInfo())   
         
       // loop over years and combine to a single multiband image
-      for(var y = 1; y < dates.length; y+=1) {
+      for(var y = 1; y < dates2.length; y+=1) {
       //    print(ndvi.getInfo().features[y].properties);
-      var tdate=new Date(dates[y])
+      var tdate=new Date(dates2[y])
 //      print(tdate)
-          var tfilter2=ee.Filter.metadata('DATE_ACQUIRED','equals',dates[y])
+          var tfilter2=ee.Filter.metadata('DATE_ACQUIRED','equals',dates2[y])
           var tndvi=col.filter(tfilter2).map(fNDVI).max()
  //         print(tndvi.getInfo())
           var allndvi = allndvi.addBands(tndvi);
 
           if(drawmap) {
-              addToMap(tndvi,{min:1500,max:3000,palette:NDVI_PALETTE},dates[y],0);
+              addToMap(tndvi,{min:1500,max:3000,palette:NDVI_PALETTE},dates2[y],0);
           }
   
 }
         if(exportfiles){
-          var filename=date+'_'+run+'_'+tname+'_daily__'+dates[0]+"-"+dates[dates.length-1];
+          var filename=date+'_'+run+'_'+tname+'_daily__'+dates[0]+"-"+dates2[dates2.length-1];
 //          print(filename)
           if(verbose){  print('Exporting to: '+filename)} 
            exportImage(allndvi,filename,
