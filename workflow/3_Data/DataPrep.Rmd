@@ -228,44 +228,33 @@ xyplot(as.factor(L1)~value,data=tl,pch=16,groups=as.factor(L1),asp=.15,lwd=5,yla
 There are several ways these data could be combined.  
 The individual scenes could be assessed for quality (cloud contamination, etc.), 
 sensors could be weighted by sensor quality (newer=better?).  
-Today, we'll simply take the mean of available data for each year.  
-
-      What are the limitations of this approach? 
+Today, we'll simply combine (stack) all the available observations for each pixel.  
 
 ```{r ndviprocess}
 ndates=unique(tl$value)
+## write that out
+write.table(ndates,file="data/ndates.csv",row.names=F,col.names=F,sep=",")
 
-ndvifile="data/ndvi_annual_landsat_30m.tif"
+undvi=stack(l4,l5,l7,l8)
+undvi=setZ(undvi,c(getZ(l4),getZ(l5),getZ(l7),getZ(l8)))
+
+## get the list of files and bands in correct temporal order
+#nfiles=lapply(1:nlayers(undvi), function(l) undvi[[l]]@file@name)[order(getZ(undvi))]
+#nbands=lapply(1:nlayers(undvi), function(l) undvi[[l]]@data@band)[order(getZ(undvi))]
+
+ndvi=undvi[[order(getZ(undvi))]]
+rm(l4,l5,l7,l8,undvi)
+
+## create a new ndvi layer 
+ndvifile="data/ndvi_landsat_30m.tif"
 if(!file.exists(ndvifile)){
 
-  ndvi=foreach(y=ndates,.combine=stack,.packages="raster") %dopar% {
-    # find which LANDSATs have data for the desired year
-    w1=lapply(
-      list(l4=getZ(l4),l5=getZ(l5),l7=getZ(l7),l8=getZ(l8)),
-      function(x) ifelse(y%in%x,which(y==x),NA))
-    # drop LANDSATs with no data for this year
-    w2=w1[!is.na(w1)]
-    # make a stack with the desired year for all sensors that have data
-    # this will average across sensors if there is duplicate data
-    tndvi=mean(stack(lapply(1:length(w2),function(i) {
-        print(i)
-      td=get(names(w2[i]))
-      return(td[[w2[i]]])
-    })),na.rm=T)
-    return(tndvi)
-    }
-  writeRaster(ndvi,file=ndvifile,overwrite=T)
+#ndvi=stack(lapply(1:nlayers(undvi),function(l) raster(nfiles[[l]],band=nbands[[l]])))
+writeRaster(ndvi,filename=ndvifile)
+
 }
-
-write.csv(ndates,file="data/ndates.csv",row.names=F,col.names=F)
-
-ndvi=stack(ndvifile)
-
-ndvi=stack(l4,l5,l7,l8)
-ndvi=setZ(ndvi,c(getZ(l4),getZ(l5),getZ(l7),getZ(l8)))
-ndvi
 ```
-
+  Note that this stack is not temporally sorted, so all LANDSAT 4 dates are before LANDSAT 5, etc.
 
 ```{r ndviplot,fig.cap="Merged annual maximum LANDSAT NDVI"}
 yearind=which(getZ(ndvi)%in%getZ(l7)[1:5])
@@ -315,7 +304,8 @@ sdat=data.frame(
   julrad=extract(julrad, maskids),
   aspect=extract(aspect, maskids),
   dem=extract(dem, maskids),
-  tpi=extract(tpi, maskids)
+  tpi=extract(tpi, maskids),
+  firecount=extract(fic, maskids)
 )
 
 kable(head(sdat))
@@ -324,34 +314,37 @@ kable(head(sdat))
 
 ## Temporally varying data
 ```{r tdat,results='asis'}
-## subset age to years with ndvi data
-age=age[[which(getZ(age)%in%getZ(ndvi))]]
-
-tdat=data.frame(
+ftdatw="data/tdatw.Rdata"
+if(!file.exists(ftdatw)){
+  
+tdatw=data.frame(
   id=extract(ig, maskids),
 #  extract(age, maskids),
   extract(ndvi,maskids)
   )
-kable(tdat[1:10,1:10])
+save(tdatw,file=ftdatw)
+}
+
+load(ftdatw)
+kable(tdatw[1:10,1:10])
 ```
 
 ### Reshape temporal data
 It's often easier to work with data in 'long' format where there is one row for each observation and another column indicating what the observation is.  Let's `melt` the data to 'long' format.
 ```{r tdatl,results='asis'}
-tdatl=melt(tdat,id.var="id")
+tdatl=melt(tdatw,id.var="id")
 tdatln=cbind.data.frame(lab=levels(tdatl$variable),do.call(rbind,strsplit(as.character(levels(tdatl$variable)),"_")))
 tdatl[,c("type","year")]=tdatln[match(tdatl$variable,tdatln$lab),2:3]
-tdatl=dcast(tdatl,id+year~type,value.var="value")
+tdat=dcast(tdatl,id+year~type,value.var="value")
 ## convert year from a factor to numeric
-tdatl$year=as.numeric(as.character(tdatl$year))
+tdat$year=as.numeric(as.character(tdat$year))
 ## check it out
-kable(head(tdatl),row.names = F)
+kable(head(tdat),row.names = F)
 ```
 
 Save it as an R data object for later use.
 ```{r save}
 ## drop the 'wide' version
-tdat=tdatl
 save(sdat,tdat,file="data/modeldata.Rdata")
 ```
 

@@ -46,11 +46,11 @@ It's still hard to see change while looking at the full peninsula, so let's:
 Let's load the NDVI data again.
 ```{r loadndvi}
 ## load the NDVI data
-ndvifile="data/ndvi_annual_landsat_30m.tif"
-nyears=1984:2014
+ndvifile="data/ndvi_landsat_30m.tif"
+ndates=read.csv(file="data/ndates.csv")
 ndvi=stack(ndvifile)
-names(ndvi)=paste0("ndvi_",nyears)
-ndvi=setZ(ndvi,nyears)
+names(ndvi)=paste0("ndvi_",ndates)
+ndvi=setZ(ndvi,ndates)
 ```
 
 But first we need to pick a pixel (or a few) to plot.  There are a few ways to do this.  First let's try extracting values from a few cells:
