@@ -20,6 +20,28 @@ The repository is structured as follows:
 * **output:** Temporary output from analysis
 
 
+## Obtaining the code
+
+1. Open RStudio
+2. File -> New Project -> Version Control -> GIT
+3. Repository URL [git@github.com:adammwilson/postfire.git](git@github.com:adammwilson/postfire.git)
+4. RStudio will download the code
+
+
+### Branching in Git
+Under the Git tab in the upper right tab in RStudio, create a new branch by:
+
+1. Under the Git tab, click 'More' and choose 'Shell' 
+2. in the Git command shell, type:
+
+      `git checkout -b yourname`
+      
+      where 'yourname' is a name for your new branch (e.g. 'adam')
+3. Now you can see the 'master' branch and your new branch on the right side in the Git tab.
+
+
+
+
 # Pre-Workshop Preparation
 ## Software
 Please attempt to have the following software installed and functioning prior to the workshop:
