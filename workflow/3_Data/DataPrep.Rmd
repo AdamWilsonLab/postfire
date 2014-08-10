@@ -182,26 +182,27 @@ levelplot(age[[30:40]],at=seq(0,53,len=100),col.regions=rainbow(100,start=.3),sc
 ## NDVI Compositing
 
 ```{r fgetndvi}
-getNDVI=function(file,years,prefix){
+getNDVI=function(file,datefile,prefix){
   ndvi=stack(paste0(datadir,"raw/NDVI/",file))
   NAvalue(ndvi)=0
 offs(ndvi)=-2
 gain(ndvi)=.001
-names(ndvi)=paste0(prefix,years)
-ndvi=setZ(ndvi,years)
+dates=as.Date(read.csv(paste0(datadir,"raw/NDVI/",datefile),header=F)[,1])
+names(ndvi)=paste0(prefix,sub("-","",dates))
+ndvi=setZ(ndvi,dates)
 }
 ```
 
 Now use the function to read in the data and add the relevant metadata.
 ```{r loadLandsat}
-l4=getNDVI(file="20140722_26dbab02_LT4_L1T_ANNUAL_GREENEST_TOA__1982-1993-0000000000-0000000000.tif",
-           years=1982:1993,prefix="L4_")
-l5=getNDVI(file="20140722_26dbab02_LT5_L1T_ANNUAL_GREENEST_TOA__1984-2012-0000000000-0000000000.tif",
-           years=1984:2012,prefix="L5_")
-l7=getNDVI(file="20140722_26dbab02_LE7_L1T_ANNUAL_GREENEST_TOA__1999-2014-0000000000-0000000000.tif",
-           years=1999:2014,prefix="L7_")
-l8=getNDVI(file="20140722_26dbab02_LC8_L1T_ANNUAL_GREENEST_TOA__2013-2014-0000000000-0000000000.tif",
-           years=2013:2014,prefix="L8_")
+l4=getNDVI(file="20140810_c2736095_LT4_L1T_TOA_daily__1988-03-08-1992-11-14-0000000000-0000000000.tif",
+           datefile="LT4_L1T_TOA.csv",prefix="L4_")
+l5=getNDVI(file="20140810_c2736095_LT5_L1T_TOA_daily__1984-06-09-2011-04-17-0000000000-0000000000.tif",
+           datefile="LT5_L1T_TOA.csv",prefix="L5_")
+l7=getNDVI(file="20140810_c2736095_LE7_L1T_TOA_daily__1999-08-30-2014-05-19-0000000000-0000000000.tif",
+           datefile="LE7_L1T_TOA.csv",prefix="L7_")
+l8=getNDVI(file="20140810_c2736095_LC8_L1T_TOA_daily__2013-05-24-2014-07-30-0000000000-0000000000.tif",
+           datefile="LC8_L1T_TOA.csv",prefix="L8_")
 
 ```
 
@@ -210,11 +211,10 @@ Let's check out one of the LANDSAT objects.  Raster provides a summary by just t
 l7
 ```
 
-And a plot of a few different years:
+And a plot of a few different dates:
 
 ```{r landsatplot, fig.width=7, fig.height=6}
-tyears=2005:2010
-yearind=which(getZ(l7)%in%tyears)
+yearind=which(getZ(l7)%in%getZ(l7)[1:5])
 levelplot(l7[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,layout=c(length(yearind),1),scales=list(draw=F),maxpixels=1e5)
 ```
 
@@ -222,7 +222,7 @@ levelplot(l7[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi
 There is some temporal overlap between sensors, let's look at that:
 ```{r landsateras,fig.cap="Timeline of LANDSAT data by sensor",fig.height=3}
 tl=melt(list(l4=getZ(l4),l5=getZ(l5),l7=getZ(l7),l8=getZ(l8)))
-xyplot(as.factor(L1)~value,data=tl,type="l",groups=as.factor(L1),asp=.15,lwd=5,ylab="LANDSAT Satellite",xlab="Year")
+xyplot(as.factor(L1)~value,data=tl,pch=16,groups=as.factor(L1),asp=.15,lwd=5,ylab="LANDSAT Satellite",xlab="Date")
 ```
 
 There are several ways these data could be combined.  
@@ -233,12 +233,12 @@ Today, we'll simply take the mean of available data for each year.
       What are the limitations of this approach? 
 
 ```{r ndviprocess}
-nyears=1984:2014
+ndates=unique(tl$value)
 
 ndvifile="data/ndvi_annual_landsat_30m.tif"
 if(!file.exists(ndvifile)){
 
-  ndvi=foreach(y=nyears,.combine=stack,.packages="raster") %dopar% {
+  ndvi=foreach(y=ndates,.combine=stack,.packages="raster") %dopar% {
     # find which LANDSATs have data for the desired year
     w1=lapply(
       list(l4=getZ(l4),l5=getZ(l5),l7=getZ(l7),l8=getZ(l8)),
@@ -246,6 +246,7 @@ if(!file.exists(ndvifile)){
     # drop LANDSATs with no data for this year
     w2=w1[!is.na(w1)]
     # make a stack with the desired year for all sensors that have data
+    # this will average across sensors if there is duplicate data
     tndvi=mean(stack(lapply(1:length(w2),function(i) {
         print(i)
       td=get(names(w2[i]))
@@ -256,15 +257,18 @@ if(!file.exists(ndvifile)){
   writeRaster(ndvi,file=ndvifile,overwrite=T)
 }
 
+write.csv(ndates,file="data/ndates.csv",row.names=F,col.names=F)
+
 ndvi=stack(ndvifile)
-names(ndvi)=paste0("ndvi_",nyears)
-ndvi=setZ(ndvi,nyears)
+
+ndvi=stack(l4,l5,l7,l8)
+ndvi=setZ(ndvi,c(getZ(l4),getZ(l5),getZ(l7),getZ(l8)))
+ndvi
 ```
 
 
 ```{r ndviplot,fig.cap="Merged annual maximum LANDSAT NDVI"}
-tyears=1984:2014
-yearind=which(getZ(ndvi)%in%tyears)
+yearind=which(getZ(ndvi)%in%getZ(l7)[1:5])
 
 levelplot(ndvi[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),
           at=cndvi()$at,margin=F,scales=list(draw=F),
@@ -292,6 +296,9 @@ tmax=raster(paste0(datadir,"clean/Tmax_jan_mean.gri"))
 tmin=raster(paste0(datadir,"clean/Tmin_jul_mean.gri"))
 tpi=raster(paste0(datadir,"clean/tpi500.gri"))
 dem=raster(paste0(datadir,"clean/dem_landsat_30m.gri"))
+janrad=raster(paste0(datadir,"clean/janrad.gri"))
+julrad=raster(paste0(datadir,"clean/julrad.gri"))
+aspect=raster(paste0(datadir,"clean/aspect.gri"))
 
 ### Make a dataframe of all spatial data
 ## Beware, this approach will only work if your data are all in identical projection/grid/etc.
@@ -304,6 +311,9 @@ sdat=data.frame(
   cover=extract(cover, maskids),
   tmax=extract(tmax, maskids),
   tmin=extract(tmin, maskids),
+  janrad=extract(janrad, maskids),
+  julrad=extract(julrad, maskids),
+  aspect=extract(aspect, maskids),
   dem=extract(dem, maskids),
   tpi=extract(tpi, maskids)
 )
@@ -319,7 +329,7 @@ age=age[[which(getZ(age)%in%getZ(ndvi))]]
 
 tdat=data.frame(
   id=extract(ig, maskids),
-  extract(age, maskids),
+#  extract(age, maskids),
   extract(ndvi,maskids)
   )
 kable(tdat[1:10,1:10])

@@ -66,7 +66,7 @@ text(sdat[match(d$cell,sdat$id),c("x","y")],labels=d$cell,pos=4)
 To select points for plotting, we can use the `click` function (in Raster) that allows you to pick points on the map.  First we need to plot the data using the plot() command. Then run the `click` command using the `ig` grid so the cell id's are returned. 
 ```{r pickpoints2,eval=FALSE}
 ## first plot the data
-plot(ndvi[[1]])
+plot(ndvi[[2]])
 ## specify how many points you want to select
 nclicks=5
 ## run the click function then click on the map (to the right).  This may not work in GUI's other than RStudio...

@@ -5,7 +5,7 @@ var drawmap=false;    // flag indicating whether to add the images to the map (b
 var exportfiles=true; // flag indicating whether to actually initiate the export, leve this false while testing
 
 var driveFolder="ee_ZA_output"; // name of personal google drive folder to export to (this must be unique)
-var run="bdff7a98"; // any string to indicate a version.  I typically use a hash from my git repository
+var run="c2736095"; // any string to indicate a version.  I typically use a hash from my git repository
 var verbose=true;     // print various status messages to the console (on the right)
 
 // limit overall date range  (only dates in this range will be included)
@@ -92,8 +92,8 @@ for (var i=0; i<prods.length; i ++) {
       dates2.push(dates[p]);
     }
 
-      print("Found "+dates.length+" Dates for "+tname+":");
-
+      print("Found "+dates2.length+" Dates for "+tname+":");
+print(dates2)
 
       // if there is no images within the date range, skip it...
       if(dates2.length===0) continue;
