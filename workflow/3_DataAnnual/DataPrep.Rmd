@@ -231,33 +231,38 @@ sensors could be weighted by sensor quality (newer=better?).
 Today, we'll simply combine (stack) all the available observations for each pixel.  
 
 ```{r ndviprocess}
-ndates=unique(tl$value)
-## write that out
-write.table(ndates,file="data/ndates.csv",row.names=F,col.names=F,sep=",")
+nyears=1984:2014
 
-undvi=stack(l4,l5,l7,l8)
-undvi=setZ(undvi,c(getZ(l4),getZ(l5),getZ(l7),getZ(l8)))
-
-## get the list of files and bands in correct temporal order
-#nfiles=lapply(1:nlayers(undvi), function(l) undvi[[l]]@file@name)[order(getZ(undvi))]
-#nbands=lapply(1:nlayers(undvi), function(l) undvi[[l]]@data@band)[order(getZ(undvi))]
-
-ndvi=undvi[[order(getZ(undvi))]]
-rm(l4,l5,l7,l8,undvi)
-
-## create a new ndvi layer 
-ndvifile="data/ndvi_landsat_30m.tif"
+ndvifile="data/ndvi_annual_landsat_30m.tif"
 if(!file.exists(ndvifile)){
 
-#ndvi=stack(lapply(1:nlayers(undvi),function(l) raster(nfiles[[l]],band=nbands[[l]])))
-writeRaster(ndvi,filename=ndvifile)
-
+  ndvi=foreach(y=nyears,.combine=stack,.packages="raster") %dopar% {
+    # find which LANDSATs have data for the desired year
+    w1=lapply(
+      list(l4=getZ(l4),l5=getZ(l5),l7=getZ(l7),l8=getZ(l8)),
+      function(x) ifelse(y%in%x,which(y==x),NA))
+    # drop LANDSATs with no data for this year
+    w2=w1[!is.na(w1)]
+    # make a stack with the desired year for all sensors that have data
+    tndvi=mean(stack(lapply(1:length(w2),function(i) {
+        print(i)
+      td=get(names(w2[i]))
+      return(td[[w2[i]]])
+    })),na.rm=T)
+    return(tndvi)
+    }
+  writeRaster(ndvi,file=ndvifile,overwrite=T)
 }
+
+ndvi=stack(ndvifile)
+names(ndvi)=paste0("ndvi_",nyears)
+ndvi=setZ(ndvi,nyears)
 ```
-  Note that this stack is not temporally sorted, so all LANDSAT 4 dates are before LANDSAT 5, etc.
+
 
 ```{r ndviplot,fig.cap="Merged annual maximum LANDSAT NDVI"}
-yearind=which(getZ(ndvi)%in%getZ(l7)[1:5])
+tyears=1984:2014
+yearind=which(getZ(ndvi)%in%tyears)
 
 levelplot(ndvi[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),
           at=cndvi()$at,margin=F,scales=list(draw=F),
@@ -350,6 +355,7 @@ save(sdat,tdat,file="data/modeldata.Rdata")
 
 ```{r,echo=FALSE,eval=FALSE,results='hide',messages=FALSE,error=FALSE}
 ## this chunk outputs a copy of this script converted to a 'normal' R file with all the text and chunk information commented out
-purl("workflow/1_Data/DataPrep.Rmd",documentation=2,output="workflow/1_Data/DataPrep.R", quiet = TRUE)
+purl("workflow/3_DataAnnual/DataPrep.Rmd",documentation=2,
+     output="workflow/3_DataAnnual/DataPrep.R", quiet = TRUE)
 ```
 
