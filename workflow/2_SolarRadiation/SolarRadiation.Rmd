@@ -11,7 +11,7 @@ output:
 
 ```{r,setup,echo=F,cache=F,results='hide',message=FALSE,error=FALSE,warning=FALSE}
 ##  First some set up
-source("../1_setup.R")
+source("../setup.R")
 ## set the root directory when running from knitr
 opts_knit$set(root.dir=getwd(),cache=T,base.url = NULL)
 ```

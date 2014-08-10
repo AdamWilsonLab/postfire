@@ -12,7 +12,7 @@ output:
 
 ```{r setup1,echo=F,cache=F,results='hide',message=FALSE}
 ##  Source the setup file
-source("../1_setup.R")
+source("../setup.R")
 ```
 
 This script assembles various environmental layers into a common 30m grid for the Cape Peninsula.  It also calculates veg age based on the fire data.

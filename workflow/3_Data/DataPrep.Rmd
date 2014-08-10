@@ -12,7 +12,7 @@ output:
 
 ```{r setup1,echo=F,cache=F,results='hide',message=FALSE}
 ##  Source the setup file
-source("../1_setup.R")
+source("../setup.R")
 ```
 
 This script assembles various environmental layers into a common 30m grid for the Cape Peninsula.  It also calculates veg age based on the fire data.
@@ -331,7 +331,7 @@ tdatln=cbind.data.frame(lab=levels(tdatl$variable),
                         do.call(rbind,strsplit(as.character(levels(tdatl$variable)),"_")))
 tdatln$type=ifelse(tdatln[,"1"]%in%c("L4","L5","L7","L8"),"ndvi","age")
 
-tdatl[,c("type","date")]=tdatln[match(tdatl$variable,tdatln$lab),3:4]
+tdatl[,c("type","date")]=tdatln[match(tdatl$variable,tdatln$lab),4:3]
 tdat=dcast(tdatl,id+date~type,value.var="value")
 ## convert year from a factor to numeric
 tdat$date=as.Date(as.character(tdat$date,"%Y%m.%d"))
