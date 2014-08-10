@@ -21,9 +21,9 @@ ig=raster(paste0(datadir,"clean/indexgrid_landsat_30m.grd"))
 
 # Data
 
-Load the model data we made in [DataPrep.R](../1_Data/DataPrep.R)
+Load the model data we made in [DataPrep.R](../3_DataAnnual/DataPrep.Rmd)
 ```{r loaddata,results='asis'}
-load("data/modeldata.Rdata")
+load("data/modeldata_annual.Rdata")
 rv_meta=read.csv("data/vegtypecodes.csv")
 sdat$vegn=rv_meta$code[match(sdat$veg,rv_meta$ID)]
 

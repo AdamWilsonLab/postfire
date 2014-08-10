@@ -12,13 +12,13 @@
 #' 
 ## ----setup1,echo=F,cache=F,results='hide',message=FALSE------------------
 ##  Source the setup file
-source("../1_setup.R")
+source("../setup.R")
 
 #' 
 #' This script assembles various environmental layers into a common 30m grid for the Cape Peninsula.  It also calculates veg age based on the fire data.
 #' 
 #' ## Index raster
-#' Create a raster of an index grid (`ig`) to spatially connect all the datasets.
+#' Import raster of an index grid (`ig`) to spatially connect all the datasets.
 ## ----index---------------------------------------------------------------
 ig=raster(paste0(datadir,"clean/indexgrid_landsat_30m.grd")) 
 
@@ -77,7 +77,7 @@ fi$STARTDATE[which(fi$STARTDATE==196201001)]=19620101#fix an anomalous date...
 ## note the if(!file.exists)) first checks if the file already exists so you don't rerun this everytime you run the script.
 ficfile="data/fires_number_1962to2007_landsat_30m.tif"
 if(!file.exists(ficfile))
-    fic=rasterize(fi, ig, field=c("STARTDATE"), fun="count",file=ficfile) 
+    fic=rasterize(fi, ig, field=c("YEAR"), fun="count",file=ficfile) 
 
 fic=raster(ficfile)
 
@@ -99,7 +99,7 @@ rfi=foreach(y=years,.combine=stack,.packages="raster") %dopar% {
   if(sum(fi$YEAR==y)==0) 
       td= raster(extent(ig),res=res(ig),vals=0)
   ## if there is >0 fires, then rasterize it to the grid
-  if(sum(fi$YEAR==y)>0) 
+  if(sum(fi$YEAR==y)>0)
       td=rasterize(fi[which(fi$YEAR==y),],ig, field="YEAR", fun="count", background=0) 
   ## return the individual raster
   return(td)
@@ -117,8 +117,8 @@ names(rfi)=paste0("Fire_",years)
 gplot(rfi[[30:40]]) + 
   geom_tile(aes(fill = as.factor(value))) +
   facet_wrap(~ variable) +
-        scale_fill_manual(values = c("white", "red"),breaks=c(0,1),limits=c(0,1),labels=c("No Fire","Fire")) +
-          coord_equal()
+        scale_fill_manual(name="Fire Status",values = c("white", "red"),breaks=c(0,1),limits=c(0,1),labels=c("No Fire","Fire")) +
+          coord_equal()+ theme(axis.ticks = element_blank(), axis.text = element_blank())
 
 #' 
 #' 
@@ -205,29 +205,30 @@ l8=getNDVI(file="20140722_26dbab02_LC8_L1T_ANNUAL_GREENEST_TOA__2013-2014-000000
 
 
 #' 
+#' 
 #' Let's check out one of the LANDSAT objects.  Raster provides a summary by just typing the object's name:
 ## ------------------------------------------------------------------------
 l7
 
 #' 
-#' And a plot of a few different years:
+#' And a plot of a few different dates:
 #' 
 ## ----landsatplot, fig.width=7, fig.height=6------------------------------
-tyears=2005:2010
-yearind=which(getZ(l5)%in%tyears)
-levelplot(l5[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,layout=c(length(yearind),1),scales=list(draw=F),maxpixels=1e5)
+yearind=which(getZ(l7)%in%getZ(l7)[1:5])
+levelplot(l7[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,layout=c(length(yearind),1),scales=list(draw=F),maxpixels=1e5)
 
 #' 
 #' 
 #' There is some temporal overlap between sensors, let's look at that:
 ## ----landsateras,fig.cap="Timeline of LANDSAT data by sensor",fig.height=3----
 tl=melt(list(l4=getZ(l4),l5=getZ(l5),l7=getZ(l7),l8=getZ(l8)))
-xyplot(as.factor(L1)~value,data=tl,type="l",groups=as.factor(L1),asp=.15,lwd=5,ylab="LANDSAT Satellite",xlab="Year")
+xyplot(as.factor(L1)~value,data=tl,pch=16,groups=as.factor(L1),asp=.15,lwd=5,ylab="LANDSAT Satellite",xlab="Date")
 
 #' 
-#' There are several ways these data could be combined.  The individual scenes could be assessed for quality (cloud contamination, etc.), sensors could be weighted by sensor quality (newer=better?).  Today, we'll simply take the maximum of available data for each year.  
-#' 
-#'       What are the limitations of this approach? 
+#' There are several ways these data could be combined.  
+#' The individual scenes could be assessed for quality (cloud contamination, etc.), 
+#' sensors could be weighted by sensor quality (newer=better?).  
+#' Today, we'll simply combine (stack) all the available observations for each pixel.  
 #' 
 ## ----ndviprocess---------------------------------------------------------
 nyears=1984:2014
@@ -243,7 +244,7 @@ if(!file.exists(ndvifile)){
     # drop LANDSATs with no data for this year
     w2=w1[!is.na(w1)]
     # make a stack with the desired year for all sensors that have data
-    tndvi=max(stack(lapply(1:length(w2),function(i) {
+    tndvi=mean(stack(lapply(1:length(w2),function(i) {
         print(i)
       td=get(names(w2[i]))
       return(td[[w2[i]]])
@@ -289,6 +290,9 @@ tmax=raster(paste0(datadir,"clean/Tmax_jan_mean.gri"))
 tmin=raster(paste0(datadir,"clean/Tmin_jul_mean.gri"))
 tpi=raster(paste0(datadir,"clean/tpi500.gri"))
 dem=raster(paste0(datadir,"clean/dem_landsat_30m.gri"))
+janrad=raster(paste0(datadir,"clean/janrad.gri"))
+julrad=raster(paste0(datadir,"clean/julrad.gri"))
+aspect=raster(paste0(datadir,"clean/aspect.gri"))
 
 ### Make a dataframe of all spatial data
 ## Beware, this approach will only work if your data are all in identical projection/grid/etc.
@@ -301,8 +305,12 @@ sdat=data.frame(
   cover=extract(cover, maskids),
   tmax=extract(tmax, maskids),
   tmin=extract(tmin, maskids),
+  janrad=extract(janrad, maskids),
+  julrad=extract(julrad, maskids),
+  aspect=extract(aspect, maskids),
   dem=extract(dem, maskids),
-  tpi=extract(tpi, maskids)
+  tpi=extract(tpi, maskids),
+  firecount=extract(fic, maskids)
 )
 
 kable(head(sdat))
@@ -311,37 +319,46 @@ kable(head(sdat))
 #' 
 #' ## Temporally varying data
 ## ----tdat,results='asis'-------------------------------------------------
-## subset age to years with ndvi data
-age=age[[which(getZ(age)%in%getZ(ndvi))]]
-
-tdat=data.frame(
+ftdatw="data/tdatw_annual.Rdata"
+if(!file.exists(ftdatw)){
+  
+tdatw=data.frame(
   id=extract(ig, maskids),
   extract(age, maskids),
   extract(ndvi,maskids)
   )
-kable(tdat[1:10,1:10])
+save(tdatw,file=ftdatw)
+}
+
+load(ftdatw)
+kable(tdatw[1:10,1:10])
 
 #' 
 #' ### Reshape temporal data
 #' It's often easier to work with data in 'long' format where there is one row for each observation and another column indicating what the observation is.  Let's `melt` the data to 'long' format.
 ## ----tdatl,results='asis'------------------------------------------------
-tdatl=melt(tdat,id.var="id")
-tdatln=cbind.data.frame(lab=levels(tdatl$variable),do.call(rbind,strsplit(as.character(levels(tdatl$variable)),"_")))
+fmodeldata="data/modeldata_annual.Rdata"
+if(!file.exists(fmodeldata)){
+  
+tdatl=melt(tdatw,id.var="id")
+tdatln=cbind.data.frame(lab=levels(tdatl$variable),
+                        do.call(rbind,strsplit(as.character(levels(tdatl$variable)),"_")))
 tdatl[,c("type","year")]=tdatln[match(tdatl$variable,tdatln$lab),2:3]
-tdatl=dcast(tdatl,id+year~type,value.var="value")
+tdat=dcast(tdatl,id+year~type,value.var="value")
 ## convert year from a factor to numeric
-tdatl$year=as.numeric(as.character(tdatl$year))
+tdat$year=as.numeric(as.character(tdat$year))
+## save both the spatial and temporal datasets
+save(sdat,tdat,file=fmodeldata)
+}
+
+load(fmodeldata)
 ## check it out
-kable(head(tdatl),row.names = F)
+kable(head(tdat),row.names = F)
 
 #' 
-#' Save it as an R data object for later use.
-## ----save----------------------------------------------------------------
-save(sdat,tdat,tdatl,file="data/modeldata.Rdata")
-
-#' 
-## ----,echo=FALSE,results='hide',messages=FALSE,error=FALSE---------------
-## this chunk outputs a copy of this script converted to a 'normal' R file with all the text and chunk information commented out
-purl("workflow/1_Data/DataPrep.Rmd",documentation=2,output="workflow/1_Data/DataPrep.R", quiet = TRUE)
+## ----,echo=FALSE,eval=FALSE,results='hide',messages=FALSE,error=FALSE----
+## ## this chunk outputs a copy of this script converted to a 'normal' R file with all the text and chunk information commented out
+## purl("workflow/3_DataAnnual/DataPrep.Rmd",documentation=2,
+##      output="workflow/3_DataAnnual/DataPrep.R", quiet = TRUE)
 
 #' 

@@ -1,7 +1,7 @@
 ---
 title: "PostFireTrajectories"
 author: "Adam M. Wilson"
-date: 'August 10, 2014'
+date: 'August 11, 2014'
 output:
   html_document:
     keep_md: yes
@@ -14,57 +14,23 @@ output:
 
 
 ```
-## Warning: cannot open file '../1_setup.R': No such file or directory
+## Warning: cannot open file '../setup.R': No such file or directory
 ```
 
 ```
 ## Error: cannot open the connection
-```
-
-```
-## Error: could not find function "raster"
 ```
 
 
 # Data
 
-Load the model data we made in [DataPrep.R](../1_Data/DataPrep.R)
+Load the model data we made in [DataPrep.R](../3_DataAnnual/DataPrep.Rmd)
 
 ```r
-load("data/modeldata.Rdata")
-```
-
-```
-## Warning: cannot open compressed file 'data/modeldata.Rdata', probable
-## reason 'No such file or directory'
-```
-
-```
-## Error: cannot open the connection
-```
-
-```r
+load("data/modeldata_annual.Rdata")
 rv_meta=read.csv("data/vegtypecodes.csv")
-```
-
-```
-## Warning: cannot open file 'data/vegtypecodes.csv': No such file or
-## directory
-```
-
-```
-## Error: cannot open the connection
-```
-
-```r
 sdat$vegn=rv_meta$code[match(sdat$veg,rv_meta$ID)]
-```
 
-```
-## Error: object 'rv_meta' not found
-```
-
-```r
 ## now create a single monster table with all the data
 dat=cbind.data.frame(tdatl,sdat[match(tdatl$id,sdat$id),])
 ```
@@ -88,7 +54,7 @@ kable(head(dat),row.names=F)
 ```
 
 ```
-## Error: object 'dat' not found
+## Error: error in evaluating the argument 'x' in selecting a method for function 'head': Error: object 'dat' not found
 ```
 
 
@@ -103,29 +69,11 @@ Let's load the NDVI data again.
 
 ```r
 ## load the NDVI data
-ndvifile="data/ndvi_landsat_30m.tif"
+ndvifile="data/ndvi_annual_landsat_30m.tif"
 years=1984:2014
 ndvi=stack(ndvifile)
-```
-
-```
-## Error: invalid 'times' value
-```
-
-```r
 names(ndvi)=paste0("ndvi_",years)
-```
-
-```
-## Error: object 'ndvi' not found
-```
-
-```r
 ndvi=setZ(ndvi,years)
-```
-
-```
-## Error: could not find function "setZ"
 ```
 
 But first we need to pick a pixel (or a few) to plot.  There are a few ways to do this.  First let's try extracting values from a few cells:
@@ -133,29 +81,13 @@ But first we need to pick a pixel (or a few) to plot.  There are a few ways to d
 ```r
 ## first plot the data
 plot(ndvi[[1]])
-```
-
-```
-## Error: object 'ndvi' not found
-```
-
-```r
 ## select a few points by row number
 d=data.frame(cell=c(1095098,1070102,1006689))
 points(sdat[match(d$cell,sdat$id),c("x","y")],pch=16)
-```
-
-```
-## Error: object 'sdat' not found
-```
-
-```r
 text(sdat[match(d$cell,sdat$id),c("x","y")],labels=d$cell,pos=4)
 ```
 
-```
-## Error: object 'sdat' not found
-```
+![plot of chunk pickpoints](figure/pickpoints.png) 
 
 To select points for plotting, we can use the `click` function (in Raster) that allows you to pick points on the map.  First we need to plot the data using the plot() command. Then run the `click` command using the `ig` grid so the cell id's are returned. 
 
@@ -178,7 +110,7 @@ ggplot(dat[dat$id%in%d$cell,],
 ```
 
 ```
-## Error: could not find function "ggplot"
+## Error: object 'dat' not found
 ```
 
 And as a function of age
@@ -191,7 +123,7 @@ ggplot(dat[dat$id%in%d$cell,],
 ```
 
 ```
-## Error: could not find function "ggplot"
+## Error: object 'dat' not found
 ```
 
   Explore the NDVI data for various pixels by changing `nclicks` above and selecting new points on the map.  Remember that we subsetted the dat dataframe to include only 'natural vegetation' so you may select a point with no data.  
@@ -203,36 +135,19 @@ Alternatively, we can aggregate the data from a larger region.  First import a s
 ```r
 ## load the reserve shapefile
 reserves=readOGR(paste0(datadir,"raw/reserves/"),"reserves")
-```
-
-```
-## Error: could not find function "readOGR"
-```
-
-```r
 reserves=spTransform(reserves,CRS(proj4string(ig)))
-```
 
-```
-## Error: could not find function "spTransform"
-```
-
-```r
 ## or pick a fire polygon
 fi=readOGR(dsn=paste0(datadir,"raw/Fire"), layer="CapePenFires") #Cape Peninsula fires history layers 1962-2007
 ```
 
 ```
-## Error: could not find function "readOGR"
+## Warning: Z-dimension discarded
 ```
 
 ```r
 ## transform to working projection
 fi=spTransform(fi,CRS(proj4string(ig)))
-```
-
-```
-## Error: could not find function "spTransform"
 ```
 
 Now select a region to explore.  You could do a single fire, a single reserve, or any combination of regions using the code below.  
@@ -241,33 +156,20 @@ Now select a region to explore.  You could do a single fire, a single reserve, o
 ## select a reserve
 resname="SILVERMINE"
 reg1=reserves[which(reserves$MASTERNAME==resname),]
-```
 
-```
-## Error: object 'reserves' not found
-```
-
-```r
 ## or pick a fire
 #reg1=fi[which(fi$FIREID==2000103),]
 ## get cell numbers in that region
 
 ## Extract the data for that polygon
 rd=extract(ig,reg1)[[1]]
-```
 
-```
-## Error: could not find function "extract"
-```
 
-```r
 ggplot(sdat[sdat$id%in%rd,], aes(x=x,y=y))+
    geom_tile(aes(fill=dem))
 ```
 
-```
-## Error: could not find function "ggplot"
-```
+![plot of chunk subset](figure/subset.png) 
 
 Let's look at all those pixels through time:
 
@@ -279,7 +181,7 @@ ggplot(dat[dat$id%in%rd,],aes(x=as.numeric(year),y=ndvi,group=id))+
 ```
 
 ```
-## Error: could not find function "ggplot"
+## Error: object 'dat' not found
 ```
 
 And vs. cell age
@@ -291,7 +193,7 @@ ggplot(dat[dat$age>=0&dat$id%in%rd,],aes(x=age,y=ndvi,group=id))+
 ```
 
 ```
-## Error: could not find function "ggplot"
+## Error: object 'dat' not found
 ```
 
 # Non-linear model fitting
@@ -332,7 +234,7 @@ ggplot(dats,aes(x=age,y=ndvi,group=id))+
 ```
 
 ```
-## Error: could not find function "ggplot"
+## Error: object 'dats' not found
 ```
 
 Woah, that's messy.  Could there be any information there?  Let's see what happens when we fit all pixels at once.
@@ -344,7 +246,7 @@ m <- nlsLM(sform, data =dats, start = start, trace = T,control=ctl,lower=lower,u
 ```
 
 ```
-## Error: could not find function "nlsLM"
+## Error: object 'dats' not found
 ```
 
 ```r
@@ -352,7 +254,7 @@ summary(m)
 ```
 
 ```
-## Error: object 'm' not found
+## Error: error in evaluating the argument 'object' in selecting a method for function 'summary': Error: object 'm' not found
 ```
 
 Plot it:
@@ -364,7 +266,7 @@ dpred=cbind.data.frame(ndvi=predict(m,newdata=data.frame(age=x)),age=x,id=1)
 ```
 
 ```
-## Error: object 'm' not found
+## Error: error in evaluating the argument 'object' in selecting a method for function 'predict': Error: object 'm' not found
 ```
 
 ```r
@@ -374,7 +276,7 @@ ggplot(dats,aes(x=age,y=ndvi,group=id))+
 ```
 
 ```
-## Error: could not find function "ggplot"
+## Error: object 'dats' not found
 ```
 
 Do you believe it?  Useful?  How to improve upon this approach?  What other factors are important?

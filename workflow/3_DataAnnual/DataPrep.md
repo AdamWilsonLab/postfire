@@ -104,7 +104,7 @@ fi$STARTDATE[which(fi$STARTDATE==196201001)]=19620101#fix an anomalous date...
 ## note the if(!file.exists)) first checks if the file already exists so you don't rerun this everytime you run the script.
 ficfile="data/fires_number_1962to2007_landsat_30m.tif"
 if(!file.exists(ficfile))
-    fic=rasterize(fi, ig, field=c("STARTDATE"), fun="count",file=ficfile) 
+    fic=rasterize(fi, ig, field=c("YEAR"), fun="count",file=ficfile) 
 
 fic=raster(ficfile)
 ```
@@ -127,7 +127,7 @@ rfi=foreach(y=years,.combine=stack,.packages="raster") %dopar% {
   if(sum(fi$YEAR==y)==0) 
       td= raster(extent(ig),res=res(ig),vals=0)
   ## if there is >0 fires, then rasterize it to the grid
-  if(sum(fi$YEAR==y)>0) 
+  if(sum(fi$YEAR==y)>0)
       td=rasterize(fi[which(fi$YEAR==y),],ig, field="YEAR", fun="count", background=0) 
   ## return the individual raster
   return(td)
@@ -256,6 +256,7 @@ l8=getNDVI(file="20140722_26dbab02_LC8_L1T_ANNUAL_GREENEST_TOA__2013-2014-000000
            years=2013:2014,prefix="L8_")
 ```
 
+
 Let's check out one of the LANDSAT objects.  Raster provides a summary by just typing the object's name:
 
 ```r
@@ -274,12 +275,11 @@ l7
 ## time        : 1999 - 2014 (range)
 ```
 
-And a plot of a few different years:
+And a plot of a few different dates:
 
 
 ```r
-tyears=2005:2010
-yearind=which(getZ(l7)%in%tyears)
+yearind=which(getZ(l7)%in%getZ(l7)[1:5])
 levelplot(l7[[yearind]],col.regions=cndvi()$col,cuts=length(cndvi()$at),at=cndvi()$at,layout=c(length(yearind),1),scales=list(draw=F),maxpixels=1e5)
 ```
 
@@ -290,14 +290,15 @@ There is some temporal overlap between sensors, let's look at that:
 
 ```r
 tl=melt(list(l4=getZ(l4),l5=getZ(l5),l7=getZ(l7),l8=getZ(l8)))
-xyplot(as.factor(L1)~value,data=tl,type="l",groups=as.factor(L1),asp=.15,lwd=5,ylab="LANDSAT Satellite",xlab="Year")
+xyplot(as.factor(L1)~value,data=tl,pch=16,groups=as.factor(L1),asp=.15,lwd=5,ylab="LANDSAT Satellite",xlab="Date")
 ```
 
 ![Timeline of LANDSAT data by sensor](./DataPrep_files/figure-html/landsateras.png) 
 
-There are several ways these data could be combined.  The individual scenes could be assessed for quality (cloud contamination, etc.), sensors could be weighted by sensor quality (newer=better?).  Today, we'll simply take the maximum of available data for each year.  
-
-      What are the limitations of this approach? 
+There are several ways these data could be combined.  
+The individual scenes could be assessed for quality (cloud contamination, etc.), 
+sensors could be weighted by sensor quality (newer=better?).  
+Today, we'll simply combine (stack) all the available observations for each pixel.  
 
 
 ```r
@@ -314,7 +315,7 @@ if(!file.exists(ndvifile)){
     # drop LANDSATs with no data for this year
     w2=w1[!is.na(w1)]
     # make a stack with the desired year for all sensors that have data
-    tndvi=max(stack(lapply(1:length(w2),function(i) {
+    tndvi=mean(stack(lapply(1:length(w2),function(i) {
         print(i)
       td=get(names(w2[i]))
       return(td[[w2[i]]])
@@ -363,6 +364,9 @@ tmax=raster(paste0(datadir,"clean/Tmax_jan_mean.gri"))
 tmin=raster(paste0(datadir,"clean/Tmin_jul_mean.gri"))
 tpi=raster(paste0(datadir,"clean/tpi500.gri"))
 dem=raster(paste0(datadir,"clean/dem_landsat_30m.gri"))
+janrad=raster(paste0(datadir,"clean/janrad.gri"))
+julrad=raster(paste0(datadir,"clean/julrad.gri"))
+aspect=raster(paste0(datadir,"clean/aspect.gri"))
 
 ### Make a dataframe of all spatial data
 ## Beware, this approach will only work if your data are all in identical projection/grid/etc.
@@ -375,8 +379,12 @@ sdat=data.frame(
   cover=extract(cover, maskids),
   tmax=extract(tmax, maskids),
   tmin=extract(tmin, maskids),
+  janrad=extract(janrad, maskids),
+  julrad=extract(julrad, maskids),
+  aspect=extract(aspect, maskids),
   dem=extract(dem, maskids),
-  tpi=extract(tpi, maskids)
+  tpi=extract(tpi, maskids),
+  firecount=extract(fic, maskids)
 )
 
 kable(head(sdat))
@@ -384,75 +392,82 @@ kable(head(sdat))
 
 
 
-|    id|      x|       y| veg| cover|  tmax|   tmin|   dem|   tpi|
-|-----:|------:|-------:|---:|-----:|-----:|------:|-----:|-----:|
-| 83925| 260445| 6243525|  18|     1| 28.19|  9.413| 152.5| 7.934|
-| 84598| 260415| 6243495|  18|     1| 28.40|  9.556| 150.5| 7.260|
-| 84599| 260445| 6243495|  18|     1| 28.19|  9.459| 149.6| 6.183|
-| 84600| 260475| 6243495|  18|     1| 28.52|  9.779| 146.9| 5.759|
-| 84601| 260505| 6243495|  18|     1| 28.79| 10.022| 138.2| 5.770|
-| 85271| 260385| 6243465|  18|     1| 28.50|  9.714| 139.8| 5.918|
+|    id|      x|       y| veg| cover|  tmax|   tmin| janrad| julrad| aspect|   dem|   tpi| firecount|
+|-----:|------:|-------:|---:|-----:|-----:|------:|------:|------:|------:|-----:|-----:|---------:|
+| 83925| 260445| 6243525|  18|     1| 28.19|  9.413|   8902|   3029|  2.135| 152.5| 7.934|         1|
+| 84598| 260415| 6243495|  18|     1| 28.40|  9.556|   8781|   2562|  3.223| 150.5| 7.260|         1|
+| 84599| 260445| 6243495|  18|     1| 28.19|  9.459|   8789|   2686|  2.612| 149.6| 6.183|         1|
+| 84600| 260475| 6243495|  18|     1| 28.52|  9.779|   8515|   2454|  2.170| 146.9| 5.759|         1|
+| 84601| 260505| 6243495|  18|     1| 28.79| 10.022|   8331|   2112|  2.421| 138.2| 5.770|         1|
+| 85271| 260385| 6243465|  18|     1| 28.50|  9.714|   8619|   2274|  2.930| 139.8| 5.918|         3|
 
 
 ## Temporally varying data
 
 ```r
-## subset age to years with ndvi data
-age=age[[which(getZ(age)%in%getZ(ndvi))]]
-
-tdat=data.frame(
+ftdatw="data/tdatw_annual.Rdata"
+if(!file.exists(ftdatw)){
+  
+tdatw=data.frame(
   id=extract(ig, maskids),
   extract(age, maskids),
   extract(ndvi,maskids)
   )
-kable(tdat[1:10,1:10])
+save(tdatw,file=ftdatw)
+}
+
+load(ftdatw)
+kable(tdatw[1:10,1:10])
 ```
 
 
 
-|    id| age_1984| age_1985| age_1986| age_1987| age_1988| age_1989| age_1990| age_1991| age_1992|
+|    id| age_1962| age_1963| age_1964| age_1965| age_1966| age_1967| age_1968| age_1969| age_1970|
 |-----:|--------:|--------:|--------:|--------:|--------:|--------:|--------:|--------:|--------:|
-| 83925|      -23|      -24|      -25|      -26|      -27|      -28|      -29|      -30|      -31|
-| 84598|      -23|      -24|      -25|      -26|      -27|      -28|      -29|      -30|      -31|
-| 84599|      -23|      -24|      -25|      -26|      -27|      -28|      -29|      -30|      -31|
-| 84600|      -23|      -24|      -25|      -26|      -27|      -28|      -29|      -30|      -31|
-| 84601|      -23|      -24|      -25|      -26|      -27|      -28|      -29|      -30|      -31|
-| 85271|      -23|      -24|      -25|        0|        1|        2|        3|        4|        5|
-| 85272|      -23|      -24|      -25|      -26|      -27|      -28|      -29|      -30|      -31|
-| 85273|      -23|      -24|      -25|      -26|      -27|      -28|      -29|      -30|      -31|
-| 85274|      -23|      -24|      -25|      -26|      -27|      -28|      -29|      -30|      -31|
-| 85275|      -23|      -24|      -25|      -26|      -27|      -28|      -29|      -30|      -31|
+| 83925|       -1|       -2|       -3|       -4|       -5|       -6|       -7|       -8|       -9|
+| 84598|       -1|       -2|       -3|       -4|       -5|       -6|       -7|       -8|       -9|
+| 84599|       -1|       -2|       -3|       -4|       -5|       -6|       -7|       -8|       -9|
+| 84600|       -1|       -2|       -3|       -4|       -5|       -6|       -7|       -8|       -9|
+| 84601|       -1|       -2|       -3|       -4|       -5|       -6|       -7|       -8|       -9|
+| 85271|       -1|       -2|       -3|       -4|       -5|       -6|       -7|       -8|       -9|
+| 85272|       -1|       -2|       -3|       -4|       -5|       -6|       -7|       -8|       -9|
+| 85273|       -1|       -2|       -3|       -4|       -5|       -6|       -7|       -8|       -9|
+| 85274|       -1|       -2|       -3|       -4|       -5|       -6|       -7|       -8|       -9|
+| 85275|       -1|       -2|       -3|       -4|       -5|       -6|       -7|       -8|       -9|
 
 ### Reshape temporal data
 It's often easier to work with data in 'long' format where there is one row for each observation and another column indicating what the observation is.  Let's `melt` the data to 'long' format.
 
 ```r
-tdatl=melt(tdat,id.var="id")
-tdatln=cbind.data.frame(lab=levels(tdatl$variable),do.call(rbind,strsplit(as.character(levels(tdatl$variable)),"_")))
+fmodeldata="data/modeldata_annual.Rdata"
+if(!file.exists(fmodeldata)){
+  
+tdatl=melt(tdatw,id.var="id")
+tdatln=cbind.data.frame(lab=levels(tdatl$variable),
+                        do.call(rbind,strsplit(as.character(levels(tdatl$variable)),"_")))
 tdatl[,c("type","year")]=tdatln[match(tdatl$variable,tdatln$lab),2:3]
-tdatl=dcast(tdatl,id+year~type,value.var="value")
+tdat=dcast(tdatl,id+year~type,value.var="value")
 ## convert year from a factor to numeric
-tdatl$year=as.numeric(as.character(tdatl$year))
+tdat$year=as.numeric(as.character(tdat$year))
+## save both the spatial and temporal datasets
+save(sdat,tdat,file=fmodeldata)
+}
+
+load(fmodeldata)
 ## check it out
-kable(head(tdatl),row.names = F)
+kable(head(tdat),row.names = F)
 ```
 
 
 
-|    id| year| age|   ndvi|
-|-----:|----:|---:|------:|
-| 83925| 1984| -23| 0.2790|
-| 83925| 1985| -24| 0.5820|
-| 83925| 1986| -25| 0.4830|
-| 83925| 1987| -26| 0.3160|
-| 83925| 1988| -27| 0.3080|
-| 83925| 1989| -28| 0.4155|
-
-Save it as an R data object for later use.
-
-```r
-save(sdat,tdat,tdatl,file="data/modeldata.Rdata")
-```
+|    id| year| age| ndvi|
+|-----:|----:|---:|----:|
+| 83925| 1962|  -1|   NA|
+| 83925| 1963|  -2|   NA|
+| 83925| 1964|  -3|   NA|
+| 83925| 1965|  -4|   NA|
+| 83925| 1966|  -5|   NA|
+| 83925| 1967|  -6|   NA|
 
 
 

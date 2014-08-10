@@ -182,29 +182,29 @@ levelplot(age[[30:40]],at=seq(0,53,len=100),col.regions=rainbow(100,start=.3),sc
 ## NDVI Compositing
 
 ```{r fgetndvi}
-getNDVI=function(file,datefile,prefix){
+getNDVI=function(file,years,prefix){
   ndvi=stack(paste0(datadir,"raw/NDVI/",file))
   NAvalue(ndvi)=0
 offs(ndvi)=-2
 gain(ndvi)=.001
-dates=as.Date(read.csv(paste0(datadir,"raw/NDVI/",datefile),header=F)[,1])
-names(ndvi)=paste0(prefix,sub("-","",dates))
-ndvi=setZ(ndvi,dates)
+names(ndvi)=paste0(prefix,years)
+ndvi=setZ(ndvi,years)
 }
 ```
 
 Now use the function to read in the data and add the relevant metadata.
 ```{r loadLandsat}
-l4=getNDVI(file="20140810_c2736095_LT4_L1T_TOA_daily__1988-03-08-1992-11-14-0000000000-0000000000.tif",
-           datefile="LT4_L1T_TOA.csv",prefix="L4_")
-l5=getNDVI(file="20140810_c2736095_LT5_L1T_TOA_daily__1984-06-09-2011-04-17-0000000000-0000000000.tif",
-           datefile="LT5_L1T_TOA.csv",prefix="L5_")
-l7=getNDVI(file="20140810_c2736095_LE7_L1T_TOA_daily__1999-08-30-2014-05-19-0000000000-0000000000.tif",
-           datefile="LE7_L1T_TOA.csv",prefix="L7_")
-l8=getNDVI(file="20140810_c2736095_LC8_L1T_TOA_daily__2013-05-24-2014-07-30-0000000000-0000000000.tif",
-           datefile="LC8_L1T_TOA.csv",prefix="L8_")
+l4=getNDVI(file="20140722_26dbab02_LT4_L1T_ANNUAL_GREENEST_TOA__1982-1993-0000000000-0000000000.tif",
+           years=1982:1993,prefix="L4_")
+l5=getNDVI(file="20140722_26dbab02_LT5_L1T_ANNUAL_GREENEST_TOA__1984-2012-0000000000-0000000000.tif",
+           years=1984:2012,prefix="L5_")
+l7=getNDVI(file="20140722_26dbab02_LE7_L1T_ANNUAL_GREENEST_TOA__1999-2014-0000000000-0000000000.tif",
+           years=1999:2014,prefix="L7_")
+l8=getNDVI(file="20140722_26dbab02_LC8_L1T_ANNUAL_GREENEST_TOA__2013-2014-0000000000-0000000000.tif",
+           years=2013:2014,prefix="L8_")
 
 ```
+
 
 Let's check out one of the LANDSAT objects.  Raster provides a summary by just typing the object's name:
 ```{r}
@@ -319,12 +319,12 @@ kable(head(sdat))
 
 ## Temporally varying data
 ```{r tdat,results='asis'}
-ftdatw="data/tdatw.Rdata"
+ftdatw="data/tdatw_annual.Rdata"
 if(!file.exists(ftdatw)){
   
 tdatw=data.frame(
   id=extract(ig, maskids),
-#  extract(age, maskids),
+  extract(age, maskids),
   extract(ndvi,maskids)
   )
 save(tdatw,file=ftdatw)
@@ -337,20 +337,23 @@ kable(tdatw[1:10,1:10])
 ### Reshape temporal data
 It's often easier to work with data in 'long' format where there is one row for each observation and another column indicating what the observation is.  Let's `melt` the data to 'long' format.
 ```{r tdatl,results='asis'}
+fmodeldata="data/modeldata_annual.Rdata"
+if(!file.exists(fmodeldata)){
+  
 tdatl=melt(tdatw,id.var="id")
-tdatln=cbind.data.frame(lab=levels(tdatl$variable),do.call(rbind,strsplit(as.character(levels(tdatl$variable)),"_")))
+tdatln=cbind.data.frame(lab=levels(tdatl$variable),
+                        do.call(rbind,strsplit(as.character(levels(tdatl$variable)),"_")))
 tdatl[,c("type","year")]=tdatln[match(tdatl$variable,tdatln$lab),2:3]
 tdat=dcast(tdatl,id+year~type,value.var="value")
 ## convert year from a factor to numeric
 tdat$year=as.numeric(as.character(tdat$year))
+## save both the spatial and temporal datasets
+save(sdat,tdat,file=fmodeldata)
+}
+
+load(fmodeldata)
 ## check it out
 kable(head(tdat),row.names = F)
-```
-
-Save it as an R data object for later use.
-```{r save}
-## drop the 'wide' version
-save(sdat,tdat,file="data/modeldata.Rdata")
 ```
 
 ```{r,echo=FALSE,eval=FALSE,results='hide',messages=FALSE,error=FALSE}
