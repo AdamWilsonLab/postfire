@@ -51,10 +51,20 @@ if (Sys.getenv("USER")=='jasper') {
 }  
 
   # "USERNAME" for PC
-if (Sys.getenv("USERNAME")=='whoeveryouare') setwd ("C:/") 
-
+if (Sys.getenv("USERNAME")=='whoeveryouare') {
+  setwd ("C:/")  
+  ## path to shared Dropbox folder that has the source data
+  ## Never write anythiing to this folder!
+  datadir="C:/Dropbox/Postfire_workshop/data"
+  ## bath to GRASS executables
+  gisbase="C:/Grassdata"
+  ## Machine details
+  ncores=1   # the number of cores you want to use for parallel processing
+}
 
 registerDoMC(ncores)
+
+if(!file.exists("data")) dir.create("data",recursive=T) #create a temp folder for data in your GUT repository - it does not sync
 
 #########################################
 ## Package settings
