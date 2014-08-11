@@ -12,7 +12,7 @@ output:
     toc: yes
 ---
 
-```{r,setup,echo=F,cache=T,results='hide',message=FALSE}
+```{r,setup,echo=F,cache=F,results='hide',message=FALSE}
 ##  First some set up
 source("../setup.R")
 ig=raster(paste0(datadir,"clean/indexgrid_landsat_30m.grd")) 
@@ -21,14 +21,14 @@ ig=raster(paste0(datadir,"clean/indexgrid_landsat_30m.grd"))
 
 # Data
 
-Load the model data we made in [DataPrep.R](../1_Data/DataPrep.R)
+Load the model data we made in [DataPrep.R](../3_DataAnnual/DataPrep.Rmd)
 ```{r loaddata,results='asis'}
-load("data/modeldata.Rdata")
+load("data/modeldata_annual.Rdata")
 rv_meta=read.csv("data/vegtypecodes.csv")
 sdat$vegn=rv_meta$code[match(sdat$veg,rv_meta$ID)]
 
 ## now create a single monster table with all the data
-dat=cbind.data.frame(tdatl,sdat[match(tdatl$id,sdat$id),])
+dat=cbind.data.frame(tdat,sdat[match(tdat$id,sdat$id),])
 ## drop negative ages (time before first fire) for now
 dat=dat[dat$age>=0,]
 ## look at the table
@@ -46,11 +46,11 @@ It's still hard to see change while looking at the full peninsula, so let's:
 Let's load the NDVI data again.
 ```{r loadndvi}
 ## load the NDVI data
-ndvifile="data/ndvi_landsat_30m.tif"
-ndates=read.csv(file="data/ndates.csv")
+ndvifile="data/ndvi_annual_landsat_30m.tif"
+years=1984:2014
 ndvi=stack(ndvifile)
-names(ndvi)=paste0("ndvi_",ndates)
-ndvi=setZ(ndvi,ndates)
+names(ndvi)=paste0("ndvi_",years)
+ndvi=setZ(ndvi,years)
 ```
 
 But first we need to pick a pixel (or a few) to plot.  There are a few ways to do this.  First let's try extracting values from a few cells:
@@ -165,6 +165,17 @@ ggplot(dats,aes(x=age,y=ndvi,group=id))+
 Woah, that's messy.  Could there be any information there?  Let's see what happens when we fit all pixels at once.
 
 ```{r fitmodel1,results='hide'}
+## Assign starting values for all parameters.  The search has to start somewhere...
+start=list(alpha=0.2,gamma=0.4,lambda=4)
+## define lower and upper bounds for the parameters to limit the search
+lower=c(0,0,0)
+upper=c(1,1,10)
+## other nls control settings
+ctl=nls.control(maxiter = 150,minFactor=1e-10)
+## Assign ages at which to evaluate the model
+x=seq(0,30,len=100)
+
+
 sform=as.formula(ndvi~alpha+gamma*(1-exp(-age/lambda)))
 m <- nlsLM(sform, data =dats, start = start, trace = T,control=ctl,lower=lower,upper=upper)
 summary(m)
@@ -184,11 +195,10 @@ ggplot(dats,aes(x=age,y=ndvi,group=id))+
 
 Do you believe it?  Useful?  How to improve upon this approach?  What other factors are important?
 
-# Process pixel by pixel
 
 
 ```{r,purl,eval=FALSE,echo=FALSE,results='hide',messages=F,error=FALSE}
 ## this chunk outputs a copy of this script converted to a 'normal' R file with comments
-purl("workflow/3_PostFireTrajectories/PostFireTrajectories.Rmd",
-     documentation=2,output = "workflow/3_PostFireTrajectories/PostFireTrajectories.R", quiet = TRUE) 
+purl("workflow/5_PostFireTrajectoriesAnnual/PostFireTrajectories.Rmd",
+     documentation=2,output = "workflow/5_PostFireTrajectoriesAnnual/PostFireTrajectories.R", quiet = TRUE) 
 ```

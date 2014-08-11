@@ -14,7 +14,7 @@ output:
 
 ```{r,setup,echo=F,cache=F,results='hide',message=FALSE}
 ##  First some set up
-source("../1_setup.R")
+source("../setup.R")
 ```
 
 # Non-linear model fitting

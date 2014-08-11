@@ -14,7 +14,7 @@ pdf_document:
 
 ```{r,setup,echo=F,cache=T,results='hide',message=FALSE}
 ##  First some set up
-source("../1_setup.R")
+source("../setup.R")
 ig=raster(paste0(datadir,"clean/indexgrid_landsat_30m.grd")) 
 ```
 
