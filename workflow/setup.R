@@ -64,6 +64,7 @@ if (Sys.getenv("USERNAME")=='whoeveryouare') {
 
 registerDoMC(ncores)
 
+
 if(!file.exists("data")) dir.create("data",recursive=T) #create a temp folder for data in your GUT repository - it does not sync
 
 #########################################

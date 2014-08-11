@@ -27,6 +27,11 @@ load("data/modeldata.Rdata")
 rv_meta=read.csv("data/vegtypecodes.csv")
 sdat$vegn=rv_meta$code[match(sdat$veg,rv_meta$ID)]
 rownames(sdat)=sdat$id
+
+## clip tdat to include only 1984:2006 due to missing recent fire data
+tdat=tdat[tdat$year%in%1984:2006,]
+
+
 ```
 
 We know have two data frames we'll use in the modeling. The first is the spatial data:
@@ -39,30 +44,35 @@ And the second is the temporal data:
 kable(head(tdat),row.names=F)
 ```
 
-#dat=cbind.data.frame(tdat,sdat[match(tdat$id,sdat$id),])
-
-
 ```{r CleanData}
 
-#ndvi=ndvi[!ndvi$id%in%names(tapply(ndvi$agemonth,ndvi$id,function(x) max(x)<36))[tapply(ndvi$agemonth,ndvi$id,function(x) max(x)<36)],] #drop records with no data less than 3 years old
-#ndvi=ndvi[!ndvi$id%in%names(table(ndvi$id))[table(ndvi$id)<2*12*3],] #drop records with less than 3 years of data
-
-## Keep only fynbos veg types
-sdat=sdat[grepl("Fynbos",sdat$vegn),]
+## subset to only two fynbos veg types
+n=500
+sid=c(
+  sample(which(sdat$vegn=="Peninsula Sandstone Fynbos"),n),
+  sample(which(sdat$vegn=="Peninsula Granite Fynbos - North"),n),
+  sample(which(sdat$vegn=="Hangklip Sand Fynbos"),n)
+)
+sdat=sdat[sid,]
 
 #drop obs of unknown age or ndvi or with no data in sdat
-tdat=tdat[!is.na(tdat$age)&!is.na(tdat$ndvi)&tdat$id%in%sdat$id,] 
+tdat=tdat[!is.na(tdat$age)&
+          !is.na(tdat$ndvi)&
+          tdat$id%in%sdat$id
+          ,] 
 
 ## drop negative ages (time before first fire) for now
 tdat=tdat[tdat$age>=0,]
+```
 
-########################
+## Subsample Data
+```{r}
 #### Set model name for naming objects below and create directory to hold output
 mname="v1"
 if(!file.exists(paste("output/",mname,sep=""))) dir.create(paste("output/",mname,sep=""),recursive=T)
 
 ### subset dataset
-holdout=0.90  #percent to hold out for validation
+holdout=0.50  #percent to hold out for validation
 s=sort(sample(unique(sdat$id),round(length(unique(sdat$id))*(1-holdout)))); length(s)
 write.csv(s,paste("output/",mname,"/",mname,"_subset.csv",sep=""),row.names=F)
 sdat$subset=factor(ifelse(sdat$id%in%unique(tdat$id),ifelse(sdat$id%in%s,"Model Fitting","Validation"),"Prediction"),levels=c("Model Fitting","Validation","Prediction"),ordered=T)
@@ -85,13 +95,13 @@ scaled=scale(as.matrix(sdat[,envars]))
 env_full=cbind(intercept=1,scaled,tveg)
 
 ### Save the scaling parameters to convert fitted coefficients back to metric units later
-beta.mu=c(intercept=0,attr(scaled,"scaled:center"),veg11=0,veg14=0,veg15=0,veg16=0,veg17=0)
-beta.sd=c(intercept=1,attr(scaled,"scaled:scale"),veg11=1,veg14=1,veg15=1,veg16=1,veg17=1)
+beta.mu=c(intercept=0,attr(scaled,"scaled:center"),rep(0,ncol(tveg)))
+beta.sd=c(intercept=1,attr(scaled,"scaled:scale"),rep(1,ncol(tveg)))
 rm(scaled)  #drop the scaled data
 ```
 
 
-## Set up the data for modeling
+## Create model data
 ```{r modeldata}
 tdat_full=tdat
 tdat=tdat[tdat$id%in%s,]; gc() 
@@ -144,10 +154,12 @@ gen.inits=function(nGrid,nBeta) { list(
 }
 
 ## list of parameters to monitor (save)
-params=c("gamma.beta","gamma.sigma","alpha","alpha.mu","alpha.sigma","lambda.beta","lambda.sigma")
+params=c("gamma.beta","gamma.sigma","alpha",
+         "alpha.mu","alpha.sigma","lambda.beta","lambda.sigma")
 
 ### Save all data into Rdata object for model fitting
-save(data,gen.inits,s,sdat,beta.mu,beta.sd,envars,env_full,tdat_full,file=paste("output/",mname,"/",mname,"_inputdata.Rdata",sep=""))  #save it
+save(data,gen.inits,s,sdat,beta.mu,beta.sd,envars,env_full,tdat_full,
+     file=paste("output/",mname,"/",mname,"_inputdata.Rdata",sep="")) 
 ```
 
 
@@ -156,24 +168,38 @@ save(data,gen.inits,s,sdat,beta.mu,beta.sd,envars,env_full,tdat_full,file=paste(
 
 library(rjags)
 
-write.table(paste("Starting model ",mname," on ",date()),paste0("output/",mname,"ModelStart.txt"))
+write.table(paste("Starting model ",mname," on ",date()),
+            paste0("output/",mname,"ModelStart.txt"))
 
 ## test compilation
 t1=system.time(m <<- jags.model(file="workflow/6_Modeling/Model.R",
                              data=data,
                              inits=gen.inits(data$nGrid,data$nBeta),
-                             n.chains=1,n.adapt=100))
+                             n.chains=3,n.adapt=1000))
 ```
 
 ### Collect 'Posterior Samples' and DIC
 ```{r}
-t2=system.time(mc <<- coda.samples(m,params,n.iter=100))
-#dic=dic.samples(m,n.iter=10,type="pD")
+t2=system.time(mc <<- coda.samples(m,params,n.iter=1000))
 ```
 
 ### Save output
 ```{r}
 save(m,mc,beta.mu,beta.sd,
      file=paste("output/",mname,"/",mname,"_modeloutput.Rdata",sep=""))  
+```
+
+Model Summaries
+```{r}
+mc2=mc
+
+## Potentially thin the data
+mc2=window(mc,thin=1,start=1)
+
+### Extract regression coefficients
+mc_reg=mc2[,grep("gamma[.]|lambda[.]",colnames(mc[[1]]))]
+
+xyplot(mc_reg)
+densityplot(mc_reg)
 ```
 
