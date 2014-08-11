@@ -20,13 +20,13 @@ This script assembles various environmental layers into a common 30m grid for th
 ## Index raster
 Import raster of an index grid (`ig`) to spatially connect all the datasets.
 ```{r index}
-ig=raster(paste0(datadir,"clean/indexgrid_landsat_30m.grd")) 
+ig=raster(paste0(datadir,"/clean/indexgrid_landsat_30m.grd")) 
 ```
 
 ## Vegetation 
 
 ```{r veg}
-rv=readOGR(dsn=paste0(datadir,"raw/VegLayers/Vegetation_Indigenous_Remnants"), layer="Vegetation_Indigenous_Remnants") 
+rv=readOGR(dsn=paste0(datadir,"/raw/VegLayers/Vegetation_Indigenous_Remnants"), layer="Vegetation_Indigenous_Remnants") 
 #remnant veg layer - readOGR() reads shapefiles
 #rv; summary(rv$National_); summary(rv$Subtype); summary(rv$Community); levels(rv@data$National_)
 rv_meta=data.frame(1:length(levels(rv@data$National_)), levels(rv@data$National_)) #save VegType metadata
@@ -67,7 +67,7 @@ table(values(rvc))
 
 ## Fire data
 ```{r fire1}
-fi=readOGR(dsn=paste0(datadir,"raw/Fire"), layer="CapePenFires") #Cape Peninsula fires history layers 1962-2007
+fi=readOGR(dsn=paste0(datadir,"/raw/Fire"), layer="CapePenFires") #Cape Peninsula fires history layers 1962-2007
 fi=spTransform(fi,CRS(proj4string(ig)))
 
 ### Extract fire history data and convert to a 30m raster
