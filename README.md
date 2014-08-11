@@ -57,6 +57,7 @@ Please attempt to have the following software installed and functioning prior to
   This includes an installation of R.  Use of RStudio is not vital for the course, participants could use the  GUI included with R or another interface (e.g. [EMACS-ESS](http://ess.r-project.org/) if desired.  However, in class we'll be demonstrating the use of RStudio, so it will be most straightforward if you use that.
 2. R packages.  These are installed either with a package manager or via the command line (e.g. `install.packages(raster)`).  See for [here for a list of packages](workflow/setup.R) that we'll be using.
 3. [GRASS](http://grass.osgeo.org/download/).  We'll be giving a brief introduction to this full featured open-source GIS in one section of the workshop.  It isn't vital that you have it installed , but if you do, you'll be able to follow along.  If you do, please also install the [spGRASS6](http://cran.r-project.org/web/packages/spgrass6/index.html) R library.  
+4. [JAGS](http://mcmc-jags.sourceforge.net/)  Program for analysis of Bayesian hierarchical models using Markov Chain Monte Carlo (MCMC) simulation.  You will also need the rjags library (included in list of R libraries above).
 
 # Workshop objectives
 
