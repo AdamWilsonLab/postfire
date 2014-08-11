@@ -80,7 +80,7 @@ Please attempt to have the following software installed and functioning prior to
 	*  Introduction to foreach parallel processing 
 	
 ### Session 2 (1pm - 4pm)
-* [Data processing](workflow/3_Data/DataPrep.md)
+* [Data Prep](workflow/3_DataAnnual/DataPrep.md)
   * Assembling covariates
   * Generating the model data frame
 * [Exploration of simulated data](workflow/4_SimulatedData/SimulatedData.md)
