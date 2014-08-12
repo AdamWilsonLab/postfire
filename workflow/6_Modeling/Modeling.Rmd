@@ -75,7 +75,7 @@ write.csv(s,paste("output/",mname,"/",mname,"_subset.csv",sep=""),row.names=F)
 sdat$subset=factor(ifelse(sdat$id%in%unique(tdat$id),ifelse(sdat$id%in%s,"Model Fitting","Validation"),"Prediction"),levels=c("Model Fitting","Validation","Prediction"),ordered=T)
 ```
 
-## Create dummy variables for vegetation (and any other factors)
+## Create dummy variables for vegetation (and any other factors) 
 ```{r dummy,results='asis'}
 sdat$veg=as.factor(sdat$veg)
 lm1=lm(dem~veg,data=sdat)
