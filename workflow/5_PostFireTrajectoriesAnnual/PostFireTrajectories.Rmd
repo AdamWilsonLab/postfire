@@ -29,6 +29,11 @@ sdat$vegn=rv_meta$code[match(sdat$veg,rv_meta$ID)]
 ## clip tdat to include only 1984:2006 due to missing recent fire data
 tdat=tdat[tdat$year%in%1984:2006,]
 
+## subset the data
+scells=sample(sdat$id,10000)
+sdat=sdat[sdat$id%in%scells,]
+tdat=tdat[tdat$id%in%scells,]
+
 ## now create a single monster table with all the data
 dat=cbind.data.frame(tdat,sdat[match(tdat$id,sdat$id),])
 ## drop negative ages (time before first fire) for now
@@ -225,7 +230,7 @@ tparms=list(
   sform=as.formula(ndvi~alpha+gamma*(1-exp(-age/lambda))),
   start=list(alpha=0.1,gamma=0.4,lambda=6),
   lower=c(0,0,0),
-  upper=c(1,1,20),
+  upper=c(1,1,30),
   ctl=nls.control(maxiter = 150,minFactor=1e-10)
 )
 

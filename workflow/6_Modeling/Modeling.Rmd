@@ -20,7 +20,7 @@ ig=raster(paste0(datadir,"clean/indexgrid_landsat_30m.grd"))
 
 Load the model data we made in [DataPrep.R](../1_Data/DataPrep.R)
 ```{r loaddata,results='asis'}
-load("data/modeldata.Rdata")
+load("data/modeldata_annual.Rdata")
 rv_meta=read.csv("data/vegtypecodes.csv")
 sdat$vegn=rv_meta$code[match(sdat$veg,rv_meta$ID)]
 rownames(sdat)=sdat$id
@@ -65,7 +65,12 @@ tdat=tdat[tdat$age>=0,]
 ## Subsample Data
 ```{r}
 #### Set model name for naming objects below and create directory to hold output
+mname=substr(
+  system(" git log --pretty=format:%H | head -n 1",intern=T),
+  1,8)
+
 mname="v1"
+
 if(!file.exists(paste("output/",mname,sep=""))) dir.create(paste("output/",mname,sep=""),recursive=T)
 
 ### subset dataset
@@ -92,7 +97,8 @@ scaled=scale(as.matrix(sdat[,envars]))
 env_full=cbind(intercept=1,scaled,tveg)
 
 ### Save the scaling parameters to convert fitted coefficients back to metric units later
-beta.mu=c(intercept=0,attr(scaled,"scaled:center"),rep(0,ncol(tveg)))
+beta.mu=c(intercept=0,attr(scaled,"scaled:center"),
+        rep(0,ncol(tveg)))
 beta.sd=c(intercept=1,attr(scaled,"scaled:scale"),rep(1,ncol(tveg)))
 rm(scaled)  #drop the scaled data
 ```
@@ -186,7 +192,7 @@ Model Summaries
 if(!exists("mc")) load(foutput)
 
 ## Potentially thin the data
-mc2=window(mc,thin=1,start=1)
+mc2=window(mc,thin=20,start=1)
 
 ### Extract regression coefficients
 mc_reg=mc2[,grep("gamma[.]|lambda[.]",colnames(mc[[1]]))]
@@ -195,3 +201,16 @@ xyplot(mc_reg)
 densityplot(mc_reg)
 ```
 
+```{r }
+### Calculate convergence metrics
+## Autocorrelation
+ac=melt(autocorr.diag(mc_reg,lags=seq(0,200,5))); 
+ac$Var1=as.numeric(do.call(rbind,strsplit(as.character(ac$Var1)," "))[,2])
+colnames(ac)=c("Lag","Parameter","value")
+```
+
+Summarize parameter values:
+```{r summarizeparms,results='asis'}
+kable(summary(mc_reg)[[2]])
+names(beta.mu)
+```
