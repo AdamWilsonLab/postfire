@@ -41,6 +41,7 @@ rv=spTransform(rv,CRS(proj4string(ig)))
 Extract the national veg types from the veg layer into a 30m raster based on the index grid
 ```{r veg2,htmlcap="Land cover types aggregated to the 30m grid"}
 rvrfile="data/vegtypes_landsat_30m.tif"
+## note the if(!file.exists)) first checks if the file already exists so you don't rerun this everytime you run the script... 
 if(!file.exists(rvrfile))
   rvr=rasterize(rv, ig, field=c("National_"), fun="max",file=rvrfile) #get national veg type for each cell
 ## read it back in and 'factorize' it
@@ -74,7 +75,6 @@ fi=spTransform(fi,CRS(proj4string(ig)))
 fi$STARTDATE[which(fi$STARTDATE==196201001)]=19620101#fix an anomalous date...
 
 #Raster showing total numbers of fires in each grid cell
-## note the if(!file.exists)) first checks if the file already exists so you don't rerun this everytime you run the script.
 ficfile="data/fires_number_1962to2007_landsat_30m.tif"
 if(!file.exists(ficfile))
     fic=rasterize(fi, ig, field=c("YEAR"), fun="count",file=ficfile) 
@@ -83,94 +83,126 @@ fic=raster(ficfile)
 ```
 
 
-
 ### Rasterize fire data into annual fire maps 
 ```{r fire2}
-years=sort(unique(fi$YEAR)) #get the unique list of years in which fires occurred
-years=1962:2014
-#years=years[years>1981] #trim to 1982 onwards (our earliest reliable Landsat data)
+## Set up a "Days since 1 January 1960" column on the fire polygons
+sdate=fi$STARTDATE #get the unique list of years in which fires occurred
+sdate[which(substr(sdate, 5, 8)=="0000")]=sdate[which(substr(sdate, 5, 8)=="0000")]+1231 #set those fires to occur on the 31st Dec - need to check these and fix
+sdate=as.numeric(as.Date(as.character(sdate), format="%Y%m%d")-as.Date("19600101", format="%Y%m%d"))
+fi$Day=sdate
+sdate=sort(unique(sdate))
 
-## first check if file already exists, if not, run this
-rfifile="data/fires_annual_landsat_30m.tif"
-if(!file.exists(rfifile)) {
-rfi=foreach(y=years,.combine=stack,.packages="raster") %dopar% {
- #loop through years making a raster of burnt cells (1/0) for each
-  ## check if there were any fires that year, if not, return zeros
-  if(sum(fi$YEAR==y)==0) 
-      td= raster(extent(ig),res=res(ig),vals=0)
-  ## if there is >0 fires, then rasterize it to the grid
-  if(sum(fi$YEAR==y)>0)
-      td=rasterize(fi[which(fi$YEAR==y),],ig, field="YEAR", fun="count", background=0) 
-  ## return the individual raster
-  return(td)
+
+#############
+fir=unionSpatialPolygons(fi,fi$Day) #merge polygons by day
+fir=SpatialPolygonsDataFrame(fir, data.frame(names(fir), row.names = names(fir)))
+
+fid=SpatialPoints(coordinates(ig), proj4string=CRS(proj4string(ig)))
+
+x=over(fir, fid, returnlist=TRUE)
+
+x=fid %over% fir
+
+fid=cbind(as.data.frame(fid),as.data.frame(ig), x)
+#############
+
+
+## Rasterize each fire event
+# first check if file already exists, if not, run this
+rdffile="data/fires_day_landsat_30m"
+if(!file.exists(paste(rdffile,sdate[1],".tif",sep=""))) {
+  rdf=foreach(y=sdate,.packages="raster") %dopar% {
+    #loop through fires making a raster of burnt cells with day of year since for each
+    ## if there is >0 fires, then rasterize it to the grid
+    if(sum(fi$Day==y)>0)
+      rasterize(fi[which(fi$Day==y),],ig, field="Day", fun="last", background=0, file=paste(rdffile,y,".tif",sep=""), dataType="INT2S") 
+    ## return the year
+    return(y)
   }
-writeRaster(rfi,file=rfifile)#,options=c("COMPRESS=LZW","PREDICTOR=2"))
 }
 
-rfi=stack(rfifile)
-## add year as name
-names(rfi)=paste0("Fire_",years)
+## Get the stack of fires
+
+#sudo sysctl -w kern.maxfiles=24576
+if(exists("rdf"))
+  {
+  rdf=stack(paste("data/", list.files("data", pattern="fires_day_landsat_30m"), sep=""))
+  writeRaster(rdf, file="data/firedaysAll.tif")
+  }
+#sudo sysctl -w kern.maxfiles=12288
+
+rdf=stack("data/firedaysAll.tif")
+#xrdf=as.data.frame(rdf[[1:3]])
 
 ```
 
-```{r fireplot}
-gplot(rfi[[30:40]]) + 
-  geom_tile(aes(fill = as.factor(value))) +
-  facet_wrap(~ variable) +
-        scale_fill_manual(name="Fire Status",values = c("white", "red"),breaks=c(0,1),limits=c(0,1),labels=c("No Fire","Fire")) +
-          coord_equal()+ theme(axis.ticks = element_blank(), axis.text = element_blank())
-```
+#```{r fireplot}
+#gplot(rfi[[30:40]]) + 
+#  geom_tile(aes(fill = as.factor(value))) +
+#  facet_wrap(~ variable) +
+#        scale_fill_manual(name="Fire Status",values = c("white", "red"),breaks=c(0,1),limits=c(0,1),labels=c("No Fire","Fire")) +
+#          coord_equal()+ theme(axis.ticks = element_blank(), axis.text = element_blank())
+#```
 
 
 ### Calculate veg age from fire history
-Now we have an object `rfi` (rasterized fires) with one band/layer for each year with 0s and 1s indicating whether that pixel burned in that year.  We can use that to calculate the time since fire by setting the year that burned to 0 and adding 1 for each subsequent year until the next fire.  
-
-First let's look at one pixel's data:
-
-```{r table1,results='asis'}
-x=as.vector(rfi[551072])
-x2=rbind(fire=x)
-colnames(x2)=years
-kable(x2)
-```
-
-
-So we need a function that finds the fires and counts up each year.  We'll put in years before the first fire as negatives so we can identify them later.
+Now we have an object `rdf` (rasterized fires) with one band/layer for each fire with 0s and the number of days since 1 January 1960 indicating whether that pixel burned in that fire. We can use that to calculate the time since fire for each Landsat scene by subtracting each raster from each date and taking the minimum positive value for each cell across all rasters. Unburnt cells are given the same age (number of days since 1960-01-01) as the scene.
 
 ```{r fage}
-fage=function(x){
-  ## if there are no fires, return all negative numbers
-  if(sum(x)==0){return(-1:(-length(x)))}
-  if(sum(x)>0){
-    ## create empty vector of veg ages
-    tage=rep(NA,length(years))
-    ## years with fire
-    fids=which(x>0)  
-    tage[fids]=0
-    ## fill in years before first fire
-    tage[1:fids[1]]=-1:(-fids[1])
-    ## Now loop through years and count up unless there was a fire
-    for(i in (fids[1]+1):length(years))
-    tage[i]=ifelse((i-1)%in%fids,0,tage[i-1]+1)
-return(tage)
-}}
+
+fage=function(x, date)
+  {
+  y=date-x
+  y=min(y[y>0],na.rm=T)
+  if(y==date){y=NA}
+  return(y)
+  }
+
 ```
+
 Now let's try that: 
-```{r table2,results='asis'}
-x=as.vector(rfi[551072])
-x2=rbind(fire=x,age=fage(x))
-colnames(x2)=years
-kable(x2)
+
+```{r table2}
+
+x=as.vector(rdf[551072])
+x
+fage(x, 17022)
+max(x)
+
 ```
 
 Now use `calc` to apply that to the full stack.
+
 ```{r fireages}
-agefile="data/ages_annual_landsat_30m.tif"
-if(!file.exists(agefile))
-    age=calc(rfi,fage,file=agefile,progress='text',dataType="INT1S")
-age=stack(agefile)
-names(age)=paste0("age_",years)
-age=setZ(age,years)
+
+## Get the vector of Landsat tile dates
+tdate=read.csv(paste(datadir,"/raw/NDVI/ndates.csv", sep=""), header=T, stringsAsFactors=F)
+tdate=as.numeric(as.Date(tdate[,1]) - as.Date("19600101", format="%Y%m%d"))
+
+#sudo sysctl -w kern.maxfiles=24576
+
+## Calculate the age of each pixel at each Landsat tile date
+tfile="data/tile_age_landsat_30m"
+if(!file.exists(paste(tfile,tdate[1],".tif",sep=""))) {
+  foreach(z=tdate,.packages="raster") %dopar% {
+  #calc(rdf, fun=fage, date=z, file=paste(tfile,z,".tif",sep=""), dataType="INT2S")
+  calc(rdf, fun=function(x, date=z){y=date-x; y=min(y[y>0],na.rm=T); if(y==date){y=NA}; return(y)}, file=paste(tfile,z,".tif",sep=""), dataType="INT2S")
+  return(z)
+  }
+}
+
+##
+
+tdt=stack(paste("data/", list.files("data", pattern="tile_age_landsat_30m"), sep=""))
+
+#sudo sysctl -w kern.maxfiles=12288
+
+#agefile="data/ages_annual_landsat_30m.tif"
+#if(!file.exists(agefile))
+#    age=calc(rfi,fage,file=agefile,progress='text',dataType="INT1S")
+#age=stack(agefile)
+#names(age)=paste0("age_",years)
+#age=setZ(age,years)
 ```
 
 ```{r fireanim}

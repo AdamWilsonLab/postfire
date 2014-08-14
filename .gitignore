@@ -4,11 +4,9 @@
 /data/tmp
 *.Rproj
 output/
-
 ### Rmd related files
 *_cache
 cache
 figure
 data
-
 .DS_Store

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<!-- saved from url=(0014)about:internet -->
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+<meta http-equiv="x-ua-compatible" content="IE=9" >
+
+<title>Fire and Climate Change in Fynbos</title>
+
+<style type="text/css">
+body, td {
+   font-family: sans-serif;
+   background-color: white;
+   font-size: 12px;
+   margin: 8px;
+}
+
+tt, code, pre {
+   font-family: 'DejaVu Sans Mono', 'Droid Sans Mono', 'Lucida Console', Consolas, Monaco, monospace;
+}
+
+h1 { 
+   font-size:2.2em; 
+}
+
+h2 { 
+   font-size:1.8em; 
+}
+
+h3 { 
+   font-size:1.4em; 
+}
+
+h4 { 
+   font-size:1.0em; 
+}
+
+h5 { 
+   font-size:0.9em; 
+}
+
+h6 { 
+   font-size:0.8em; 
+}
+
+a:visited {
+   color: rgb(50%, 0%, 50%);
+}
+
+pre {	
+   margin-top: 0;
+   max-width: 95%;
+   border: 1px solid #ccc;
+   white-space: pre-wrap;
+}
+
+pre code {
+   display: block; padding: 0.5em;
+}
+
+code.r, code.cpp {
+   background-color: #F8F8F8;
+}
+
+table, td, th {
+  border: none;
+}
+
+blockquote {
+   color:#666666;
+   margin:0;
+   padding-left: 1em;
+   border-left: 0.5em #EEE solid;
+}
+
+hr {
+   height: 0px;
+   border-bottom: none;
+   border-top-width: thin;
+   border-top-style: dotted;
+   border-top-color: #999999;
+}
+
+@media print {
+   * { 
+      background: transparent !important; 
+      color: black !important; 
+      filter:none !important; 
+      -ms-filter: none !important; 
+   }
+
+   body { 
+      font-size:12pt; 
+      max-width:100%; 
+   }
+       
+   a, a:visited { 
+      text-decoration: underline; 
+   }
+
+   hr { 
+      visibility: hidden;
+      page-break-before: always;
+   }
+
+   pre, blockquote { 
+      padding-right: 1em; 
+      page-break-inside: avoid; 
+   }
+
+   tr, img { 
+      page-break-inside: avoid; 
+   }
+
+   img { 
+      max-width: 100% !important; 
+   }
+
+   @page :left { 
+      margin: 15mm 20mm 15mm 10mm; 
+   }
+     
+   @page :right { 
+      margin: 15mm 10mm 15mm 20mm; 
+   }
+
+   p, h2, h3 { 
+      orphans: 3; widows: 3; 
+   }
+
+   h2, h3 { 
+      page-break-after: avoid; 
+   }
+}
+
+</style>
+
+
+
+
+
+</head>
+
+<body>
+<h1>Fire and Climate Change in Fynbos</h1>
+
+<p>A workshop in modeling post-fire recovery and ecosystem resilience in <em>fynbos</em> systems.</p>
+
+<p>The workshop will consist primarily of stepping through example code that explores the use of LANDSAT NDVI data in modeling post-fire recovery of <em>fynbos</em>.  The materials for the course are all available in a Git Repository at <a href="https://github.com/adammwilson/postfire">https://github.com/adammwilson/postfire</a>.</p>
+
+<h1>Repository Structure</h1>
+
+<p>The repository is structured as follows:</p>
+
+<ul>
+<li><strong>workflows:</strong><br/>
+
+<ul>
+<li><a href="workflow/1_EarthEngine">1_EarthEngine</a></li>
+<li><a href="workflow/2_SolarRadiation/SolarRadiation.md">2_SolarRadiation</a></li>
+<li><a href="workflow/3_Data/DataPrep.md">3_DataPrep</a></li>
+<li><a href="workflow/4_SimulatedData.md">4_SimulatedData</a></li>
+<li><a href="workflow/4_PostFireTrajectory.md">5_PostFireTrajectories</a></li>
+</ul></li>
+<li> <strong>data:</strong>  Datasets used in analyses</li>
+<li><strong>output:</strong> Temporary output from analysis</li>
+</ul>
+
+<h1>Pre-Workshop Preparation</h1>
+
+<h2>Software</h2>
+
+<p>Please attempt to have the following software installed and functioning prior to the workshop:</p>
+
+<ol>
+<li><a href="http://www.rstudio.com/">RStudio</a>
+This includes an installation of R.  Use of RStudio is not vital for the course, participants could use the  GUI included with R or another interface (e.g. <a href="http://ess.r-project.org/">EMACS-ESS</a> if desired.  However, in class we&#39;ll be demonstrating the use of RStudio, so it will be most straightforward if you use that.</li>
+<li>R packages.  These are installed either with a package manager or via the command line (e.g. <code>install.packages(raster)</code>).  See for <a href="workflow/1_setup.R">here for a list of packages</a> that we&#39;ll be using.</li>
+<li><a href="http://grass.osgeo.org/download/">GRASS</a>.  We&#39;ll be giving a brief introduction to this full featured open-source GIS in one section of the workshop.  It isn&#39;t vital that you have it installed , but if you do, you&#39;ll be able to follow along.  If you do, please also install the <a href="http://cran.r-project.org/web/packages/spgrass6/index.html">spGRASS6</a> R library.<br/></li>
+</ol>
+
+<h1>Workshop objectives</h1>
+
+<ol>
+<li>Introduce participants to methods for quantifying post-fire recovery using satellite data</li>
+<li>Provide a worked example of using LANDSAT data and covariates to quantify variability in post-fire recovery over the Cape Peninsula of South Africa.</li>
+</ol>
+
+<h2>Day 1</h2>
+
+<h3>Session 1 (9am &ndash; 12pm)</h3>
+
+<ul>
+<li>Workshop overview</li>
+<li>Project Organization
+
+<ul>
+<li> RStudio</li>
+<li> Git version control</li>
+</ul></li>
+<li>Introduction to Google Earth Engine
+
+<ul>
+<li><a href="workflow/1_EarthEngine/CapePointLANDSAT_cloud.js">Example Processing of LANDSAT data</a></li>
+<li><a href="workflow/1_EarthEngine/CapePointLANDSAT_daily.js">Pre-processing LANDSAT data</a></li>
+</ul></li>
+<li>  Data Preparation
+
+<ul>
+<li> Preparing the data for analysis, calculation of covariates (solar radiation, etc.)</li>
+<li> <a href="workflow/2_SolarRadiation/SolarRadiation.Rmd">Solar Radiation: and introduction to GRASS GIS</a></li>
+<li> Introduction to foreach parallel processing </li>
+</ul></li>
+</ul>
+
+<h3>Session 2 (1pm &ndash; 4pm)</h3>
+
+<ul>
+<li><a href="workflow/3_Data/DataPrep.md">Data processing</a>
+
+<ul>
+<li>Assembling covariates</li>
+<li>Generating the model data frame</li>
+</ul></li>
+<li><a href="workflow/4_SimulatedData/SimulatedData.md">Exploration of simulated data</a></li>
+</ul>
+
+<h2>Day 2</h2>
+
+<h3>Session 1 (9am &ndash; 12pm)</h3>
+
+<ul>
+<li><a href="workflow/5_PostFireTrajectories/PostFireTrajectories.md">Exploration of post-fire curves</a></li>
+</ul>
+
+<h3>Session 2 (1pm &ndash; 4pm)</h3>
+
+<ul>
+<li>Introduction to bayesian model fitting
+
+<ul>
+<li>Hierarchical models</li>
+<li>BUGS language</li>
+</ul></li>
+<li>Modeling Post-fire trajectories</li>
+<li>Linking NDVI to biomass/carbon</li>
+</ul>
+
+</body>
+
+</html>
+
