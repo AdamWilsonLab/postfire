@@ -5,7 +5,6 @@ date: '`r format(Sys.time(), "%B %d, %Y")`'
 output:
   html_document:
     keep_md: yes
-    number_sections: yes
     theme: cerulean
     toc: yes
   pdf_document:
@@ -27,6 +26,14 @@ load("data/modeldata_annual.Rdata")
 rv_meta=read.csv("data/vegtypecodes.csv")
 sdat$vegn=rv_meta$code[match(sdat$veg,rv_meta$ID)]
 
+## clip tdat to include only 1984:2006 due to missing recent fire data
+tdat=tdat[tdat$year%in%1984:2006,]
+
+## subset the data
+scells=sample(sdat$id,10000)
+sdat=sdat[sdat$id%in%scells,]
+tdat=tdat[tdat$id%in%scells,]
+
 ## now create a single monster table with all the data
 dat=cbind.data.frame(tdat,sdat[match(tdat$id,sdat$id),])
 ## drop negative ages (time before first fire) for now
@@ -43,7 +50,7 @@ It's still hard to see change while looking at the full peninsula, so let's:
 1. pick a few pixels and plot NDVI as a function of time.  
 2. zoom in on a smaller region
 
-Let's load the NDVI data again.
+Let's load the NDVI and age data again.
 ```{r loadndvi}
 ## load the NDVI data
 ndvifile="data/ndvi_annual_landsat_30m.tif"
@@ -51,6 +58,17 @@ years=1984:2014
 ndvi=stack(ndvifile)
 names(ndvi)=paste0("ndvi_",years)
 ndvi=setZ(ndvi,years)
+ndvi=ndvi[[which(getZ(ndvi)%in%1984:2006)]]
+```
+
+And age...
+```{r age}
+agefile="data/ages_annual_landsat_30m.tif"
+age=stack(agefile)
+names(age)=paste0("age_",1962:2014)
+age=setZ(age,1962:2014)
+age=age[[which(getZ(age)%in%getZ(ndvi))]]
+
 ```
 
 But first we need to pick a pixel (or a few) to plot.  There are a few ways to do this.  First let's try extracting values from a few cells:
@@ -193,8 +211,44 @@ ggplot(dats,aes(x=age,y=ndvi,group=id))+
 
 ```
 
-Do you believe it?  Useful?  How to improve upon this approach?  What other factors are important?
+Now look at just a few pixels.
+```{r}
+ids=unique(dats$id)[1:15]
+y=dats$ndvi[dats$id%in%ids]
+x=dats$age[dats$id%in%ids]
 
+ggplot(data.frame(x,y))+
+  geom_point(aes(x=x,y=y))
+
+```
+Note the misalignment of fire data likely caused the low NDVI values at the high ages. Otherwise there is a relatively clear signal of increasing NDVI with age. 
+
+# Fit curves binned by category
+First write a function to use with `calc`.
+```{r rasterfit}
+tparms=list(
+  sform=as.formula(ndvi~alpha+gamma*(1-exp(-age/lambda))),
+  start=list(alpha=0.1,gamma=0.4,lambda=6),
+  lower=c(0,0,0),
+  upper=c(1,1,30),
+  ctl=nls.control(maxiter = 150,minFactor=1e-10)
+)
+
+
+## Define a function to process curves by chunk
+crvfit=function(x,parms=tparms){
+  ttry=try(coef(nlsLM(parms$sform,data=x, start = parms$start, trace = F,
+           control=parms$ctl,lower=parms$lower,upper=parms$upper)),silent=T)
+if(class(ttry)=="try-error") return(c(alpha=NA,gamma=NA,lambda=NA))
+return(ttry)
+}
+
+## now bin by veg type and fit curve across all pixels in each type
+tdg=by(dat,dat$veg,FUN=crvfit,simplify=T)
+tdg=do.call(rbind,tdg)
+rownames(tdg)=rv_meta$code[as.numeric(rownames(tdg))]
+tdg
+```
 
 
 ```{r,purl,eval=FALSE,echo=FALSE,results='hide',messages=F,error=FALSE}
