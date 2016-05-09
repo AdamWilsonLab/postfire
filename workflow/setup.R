@@ -17,7 +17,8 @@ libs=c(
   "ggplot2",
   "dplyr",
   "minpack.lm",
-  "rjags")
+  "rjags",
+  "maptools")
 
 lapply(libs, require, character.only=T)
 
@@ -50,16 +51,16 @@ if (Sys.getenv("USER")=='jasper') {
   ncores=3   # the number of cores you want to use for parallel processing
 }  
 
-  # "USERNAME" for PC
-if (Sys.getenv("USERNAME")=='whoeveryouare') {
-  setwd ("C:/")  
+Sys.getenv()
+if (Sys.getenv("USER")=='glennmoncrieff') {
+  setwd ("/Users/glennmoncrieff/Documents/GIS/postfire_git")  
   ## path to shared Dropbox folder that has the source data
   ## Never write anythiing to this folder!
-  datadir="C:/Dropbox/Postfire_workshop/data"
+  datadir="/Users/glennmoncrieff/Documents/GIS/Postfire_test/data/"
   ## bath to GRASS executables
-  gisbase="C:/Grassdata"
+  gisbase="/Users/glennmoncrieff/Documents/grass"
   ## Machine details
-  ncores=1   # the number of cores you want to use for parallel processing
+  ncores=4   # the number of cores you want to use for parallel processing
 }
 
 registerDoMC(ncores)
