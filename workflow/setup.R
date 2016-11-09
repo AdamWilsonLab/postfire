@@ -15,10 +15,13 @@ libs=c(
   "rmarkdown",
   "spgrass6",
   "ggplot2",
+  "tidyr",
   "dplyr",
   "minpack.lm",
-  "rjags",
-  "maptools")
+  "maptools",
+  "lubridate",
+  "rjags")
+
 
 lapply(libs, require, character.only=T)
 
@@ -53,14 +56,14 @@ if (Sys.getenv("USER")=='jasper') {
 
 Sys.getenv()
 if (Sys.getenv("USER")=='glennmoncrieff') {
-  setwd ("/Users/glennmoncrieff/Documents/GIS/postfire_git")  
+  setwd ("/Users/glennmoncrieff/Documents/Projects/postfire/postfire/")  
   ## path to shared Dropbox folder that has the source data
   ## Never write anythiing to this folder!
-  datadir="/Users/glennmoncrieff/Documents/GIS/Postfire_test/data/"
+  datadir="/Users/glennmoncrieff/Dropbox/Postfire_workshop/Data/"
   ## bath to GRASS executables
-  gisbase="/Users/glennmoncrieff/Documents/grass"
+  gisbase="/Applications/GRASS/GRASS-6.4.app/Contents/MacOS"
   ## Machine details
-  ncores=4   # the number of cores you want to use for parallel processing
+  ncores=3   # the number of cores you want to use for parallel processing
 }
 
 registerDoMC(ncores)
