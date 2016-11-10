@@ -1,0 +1,219 @@
+---
+title: "Modeling PostFireTrajectories"
+author: "Adam M. Wilson"
+date: '`r format(Sys.time(), "%B %d, %Y")`'
+output:
+  html_document:
+    keep_md: yes
+    theme: cerulean
+    toc: yes
+---
+
+```{r,setup,echo=F,cache=F,results='hide',message=FALSE}
+##  First some set up
+source("/Users/glennmoncrieff/Documents/Projects/postfire/postfire/workflow/setup.R")
+ig=raster(paste0(datadir,"clean/indexgrid_modis_250m.grd"))  
+```
+
+
+# Data
+
+Load the model data we made in [DataPrep.R](../1_Data/DataPrep.R) and filter out unwated/duplicate
+```{r loaddata,results='asis'}
+load("data/modeldata_dim_fix.Rdata")
+
+plotsites <- c("CP","LB1","LB2","CB","BK")
+sdat=sdat[sdat$Site.y%in%plotsites,]
+sdat <- sdat[complete.cases(sdat),]
+
+#drop obs of unknown age or ndvi or with no data in sdat
+tdat=tdat[!is.na(tdat$DA)&
+          !is.na(tdat$ND)&
+          tdat$QA==0&
+          tdat$maskid%in%sdat$id
+          ,] 
+
+#we have a problem of duplicate pixels..ie plots that are so close they fall in the same pixel and hence have the same data
+
+#find these plots:
+idplot=data.frame(plot=sdat$plot,maskid=sdat$id)
+idcount=as.data.frame(table(sdat$id))
+idup=filter(idcount,Freq>1)
+pdup=filter(idplot,maskid%in%idup$Var1) #df with plots and ids of duplicates
+dplot=pdup$plot
+did=unique(pdup$maskid)
+
+#create new df with average plot conditions
+nplot <- sdat[0,]
+for (i in 1:length(did)){
+ stemp <- filter(sdat,id==did[i])
+ nplot[i,] <- stemp[1,]
+ nplot[i,]$plot=stemp$plot[1]*1000
+ nplot[i,][1,33:72] = colMeans(stemp[,33:72],na.rm=T)
+}
+
+#remove duplicates from sdata and replace with average plots
+sdat <- filter(sdat,!(id %in% did))
+sdat <- rbind(sdat,nplot)
+#remove nas
+sdat <- sdat[complete.cases(sdat),]
+rownames(sdat)=sdat$id
+
+#drop duplicates of id date
+tdat <- tdat[!duplicated(data.frame(tdat$maskid,tdat$date)),]
+```
+
+We know have two data frames we'll use in the modeling. The first is the spatial data:
+```{r sdat, results='asis'}
+kable(head(sdat),row.names=F)
+```
+
+And the second is the temporal data:
+```{r tdat, results='asis'}
+kable(head(tdat),row.names=F)
+```
+
+## Subsample Data
+```{r}
+#### Set model name for naming objects below and create directory to hold output
+mname=substr(
+  system(" git log --pretty=format:%H | head -n 1",intern=T),
+  1,8)
+
+mname="v1"
+
+if(!file.exists(paste("output/",mname,sep=""))) dir.create(paste("output/",mname,sep=""),recursive=T)
+
+### subset dataset
+holdout=0.05#percent to hold out for validation
+s=sort(sample(unique(sdat$id),round(length(unique(sdat$id))*(1-holdout)))); length(s)
+write.csv(s,paste("output/",mname,"/",mname,"_subset.csv",sep=""),row.names=F)
+sdat$subset=factor(ifelse(sdat$id%in%unique(tdat$maskid),ifelse(sdat$id%in%s,"Model Fitting","Validation"),"Prediction"),levels=c("Model Fitting","Validation","Prediction"),ordered=T)
+```
+
+## scale data
+
+```{r scale}
+## Select and scale environmental data
+envars=c("map","graminoid")
+
+scaled=scale(as.matrix(sdat[,envars]))
+env_full=cbind(intercept=1,scaled)
+
+### Save the scaling parameters to convert fitted coefficients back to metric units later
+beta.mu=c(intercept=0,attr(scaled,"scaled:center"))
+beta.sd=c(intercept=1,attr(scaled,"scaled:scale"))
+rm(scaled)  #drop the scaled data
+```
+
+
+## Create model data
+```{r modeldata}
+tdat_full=tdat
+tdat=tdat[tdat$maskid%in%s,]; gc() 
+
+## create two env frames for fitting and prediction
+env=env_full[rownames(env_full)%in%s,]
+  
+### Drop missing values
+omit=unique(tdat$maskid)[as.numeric(which(is.na(apply(env,1,sum))))]; omit
+if(length(omit)>0){
+  env=env[!rownames(env)%in%omit,]
+  tdat=tdat[!tdat$maskid%in%omit,]
+}
+
+## create new id that goes from 1 to nGrid
+tdat$id2=as.integer(as.factor(tdat$maskid)); gc()
+
+## Get counts
+nGrid=length(unique(tdat$maskid))        ;nGrid
+nTime=length(unique(tdat$year))          ;nTime
+nBeta=ncol(env)                          ;nBeta
+
+## Write data object
+data=list(
+  age=tdat$DA,
+  ndvi=tdat$ND,
+  id=tdat$id2,
+  nObs=nrow(tdat),
+  env=env,
+  nGrid=nGrid,
+  nBeta=nBeta
+  )
+
+## Function to generate initial values
+gen.inits=function(nGrid,nBeta) { list(
+  ## spatial terms
+  alpha=runif(nGrid,0.1,0.5),
+  gamma=runif(nGrid,0.1,.9),
+  lambda=runif(nGrid,0.2,1),
+  ## spatial means
+  alpha.mu=runif(1,0.1,0.2),
+  ## priors  
+  gamma.beta=runif(nBeta,0,1),
+  gamma.tau=runif(1,1,5),
+  alpha.tau=runif(1,1,5),
+  lambda.beta=runif(nBeta,0,2),
+  lambda.tau=runif(1,0,2),
+  tau=runif(1,0,2)
+  )
+}
+
+## list of parameters to monitor (save)
+params=c("gamma.beta","gamma.sigma","alpha",
+         "alpha.mu","alpha.sigma","lambda.beta","lambda.sigma")
+
+### Save all data into Rdata object for model fitting
+save(data,gen.inits,s,sdat,beta.mu,beta.sd,envars,env_full,tdat_full,
+     file=paste("output/",mname,"/",mname,"_inputdata.Rdata",sep="")) 
+```
+
+
+# JAGS
+```{r jags,eval=FALSE}
+
+foutput=paste0("output/",mname,"/",mname,"_modeloutput.Rdata")
+
+if(!file.exists(foutput)){
+
+  write.table(paste("Starting model ",mname," on ",date()),
+            paste0("output/",mname,"ModelStart.txt"))
+
+  ## test compilation
+  t1=system.time(m <<- jags.model(file="workflow/8_TraitsPlots/Model.R",
+                             data=data,
+                             inits=gen.inits(data$nGrid,data$nBeta),
+                             n.chains=3,n.adapt=10000))
+  t2=system.time(mc <<- coda.samples(m,params,n.iter=10000))
+
+  save(m,mc,beta.mu,beta.sd,file=foutput)  
+}
+```
+
+Model Summaries
+```{r msummary,fig.height=20,eval=FALSE}
+if(!exists("mc")) load(foutput)
+
+## Potentially thin the data
+mc2=window(mc,thin=20,start=1)
+
+### Extract regression coefficients
+mc_reg=mc2[,grep("gamma[.]|lambda[.]",colnames(mc[[1]]))]
+
+xyplot(mc_reg)
+densityplot(mc_reg)
+```
+
+```{r ,eval=FALSE}
+### Calculate convergence metrics
+## Autocorrelation
+ac=melt(autocorr.diag(mc_reg,lags=seq(0,200,5))); 
+ac$Var1=as.numeric(do.call(rbind,strsplit(as.character(ac$Var1)," "))[,2])
+colnames(ac)=c("Lag","Parameter","value")
+```
+
+Summarize parameter values:
+```{r summarizeparms,results='asis',eval=FALSE}
+kable(summary(mc_reg)[[2]])
+names(beta.mu)
+```

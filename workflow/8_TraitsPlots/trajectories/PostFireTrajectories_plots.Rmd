@@ -1,0 +1,189 @@
+---
+title: "PostFireTrajectories and Model Prep for plot data"
+author: "Jasper Slingsby, Adam M. Wilson and Glenn Moncrieff"
+date: '`r format(Sys.time(), "%B %d, %Y")`'
+output:
+  html_document:
+    keep_md: yes
+    number_sections: yes
+    theme: cerulean
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r,setup,echo=F,results='hide',warning=FALSE, message=FALSE, cache = F}
+##  First some set up
+source("/Users/glennmoncrieff/Documents/Projects/postfire/postfire/workflow/setup.R")
+ig=raster(paste0(datadir,"clean/indexgrid_modis_250m.grd")) 
+```
+
+
+# Data
+
+Load the model data we made in DataPrepFullRecord_plots.R
+```{r loaddata,results='asis',warning=FALSE, message=FALSE, cache = F}
+load("data/modeldata_dim_fix.Rdata")
+
+plotdat <- left_join(tdat,sdat,by="plot")
+
+#site we want to keep
+plotsites <- c("CP","LB1","LB2","CB","BK")
+dat <- filter(plotdat,Site.y%in%plotsites)%>% #filter site
+                filter(QA==0)%>%filter(ND>0) %>%filter(complete.cases(.)) #filter low quality and nodata
+
+kable(head(dat),row.names=F)
+```
+
+
+## Change through time
+
+lets look at all plots by age - up to 10 year old plots
+
+```{r,htmlcap="NDVI vs age for all plots",warning=FALSE, message=FALSE, cache = F}
+P <- ggplot(dat,aes(x=DA, y=ND,color=Site.y,group=plot)) +
+geom_line(size=0.05) +
+coord_cartesian(ylim=c(0,1),xlim=c(0,3650)) +
+#scale_color_manual(values=c("grey60")) +
+facet_wrap( ~ region, ncol=2) +
+labs(x = "days since fire", y = "NDVI") +
+scale_colour_discrete(guide = FALSE) +
+theme_bw() 
+ 
+suppressWarnings(print(P))
+```
+
+It's still hard to see change while looking at the entire dataset, so let's:
+
+1. pick a few plots and plot NDVI as a function of age  
+```{r,htmlcap="NDVI vs age",warning=FALSE, message=FALSE, cache = F}
+dat_plotname <- c("LB1_29","LB1_30","LB2_50","LB2_51","CP_45","CP_49","CB_66","CB_69","BK_38","BK_58")
+
+dat_plot <- filter(dat,plot_smpl%in%dat_plotname)
+
+P <- ggplot(dat_plot,aes(x=DA, y=ND,color=Site.y,group=plot)) +
+geom_line(size=0.2) +
+coord_cartesian(ylim=c(0,1),xlim=c(0,3650)) +
+#scale_color_manual(values=c("grey60")) +
+facet_wrap( ~ plot_smpl, ncol=3) +
+labs(x = "days since fire", y = "NDVI") +
+scale_colour_discrete(guide = FALSE) +
+theme_bw() 
+ 
+suppressWarnings(print(P))
+```
+
+2.  plot NDVI as a function of date: 
+```{r,htmlcap="NDVI vs date",warning=FALSE, message=FALSE, cache = F}
+
+P <- ggplot(dat_plot,aes(x=date, y=ND,color=Site.y,group=plot)) +
+geom_line(size=0.2) +
+scale_x_date()+
+coord_cartesian(ylim=c(0,1)) +
+#scale_color_manual(values=c("grey60")) +
+facet_wrap( ~ plot_smpl, ncol=3) +
+labs(x = "date", y = "NDVI") +
+scale_colour_discrete(guide = FALSE) +
+theme_bw() 
+ 
+suppressWarnings(print(P))
+```
+
+# Non-linear model fitting
+
+The full model I've been using (minus the seasonal component) says that the expected NDVI at some location $i$ in time $t$ comes from a normal distribution as follows:
+
+$\text{NDVI}_{i,t}\sim\mathcal{N}(\mu_{i,t},\sigma)$ 
+
+where the mean ($\mu$) is a nonlinear function including the post-fire NDVI value ($\alpha$), the potential increase in NDVI ($\gamma$), and the post-fire recovery rate ($\lambda$) as follows:
+
+$\mu_{i,t}=\alpha_i+\gamma_i\Big(1-e^{-\frac{age_{i,t}}{\lambda_i}}\Big)$
+
+#fit model
+
+ Let's see what happens when we fit all pixels at once.
+
+```{r fitmodel1,results='hide',warning=FALSE, message=FALSE, cache = F}
+sform=as.formula(ND~alpha+gamma*(1-exp(-DA/lambda)))
+m <- nlsLM(sform, data =dat, start = list(lambda=0.1,alpha=0.1,gamma=0.1), trace = T)
+summary(m)
+```
+
+Plot it:
+
+```{r fitmodel2,warning=FALSE, message=FALSE, cache = F}
+## make a new dataframe of predictions from the model
+x=seq(1:3650)
+dpred=data.frame(pred=predict(m,newdata=list(DA=x)),x=x)
+
+P <- ggplot()+
+geom_line(data=dat,aes(x=DA,y=ND,group=plot),size=0.4,alpha=0.05) +
+geom_line(data=dpred,aes(y=pred,x=x),colour="red",size=1) +
+coord_cartesian(ylim=c(0,1),xlim=c(0,3650)) +
+#scale_color_manual(values=c("grey60")) +
+labs(x = "days since fire", y = "NDVI") +
+scale_colour_discrete(guide = FALSE) +
+theme_bw() 
+ 
+suppressWarnings(print(P))
+
+```
+
+fit separate model for each site:
+
+
+```{r fitmodel1sep,warning=FALSE, message=FALSE, cache = F}
+## make a new dataframe of predictions from the model
+
+CP <- filter(dat,Site.y=="CP")
+mCP <- nlsLM(sform, data =CP, start = list(lambda=400,alpha=0.4,gamma=0.1), trace = T)
+
+LB1<- filter(dat,Site.y=="LB1")
+mLB1 <- nlsLM(sform, data =LB1, start = list(lambda=400,alpha=0.4,gamma=0.1), trace = T)
+
+LB2<- filter(dat,Site.y=="LB2")
+mLB2 <- nlsLM(sform, data =LB2, start = list(lambda=400,alpha=0.4,gamma=0.1), trace = T)
+
+CB<- filter(dat,Site.y=="CB")
+mCB <- nlsLM(sform, data =CB, start = list(lambda=400,alpha=0.4,gamma=0.1), trace = T)
+
+BK<- filter(dat,Site.y=="BK")
+mBK <- nlsLM(sform, data =BK, start = list(lambda=400,alpha=0.4,gamma=0.1), trace = T)
+
+x=seq(1:3650)
+
+dpredCP=data.frame(pred=predict(mCP,newdata=list(DA=x)),x=x,lab="CP")
+dpredLB1=data.frame(pred=predict(mLB1,newdata=list(DA=x)),x=x,lab="LB1")
+dpredLB2=data.frame(pred=predict(mLB2,newdata=list(DA=x)),x=x,lab="LB2")
+dpredCB=data.frame(pred=predict(mCB,newdata=list(DA=x)),x=x,lab="CB")
+dpredBK=data.frame(pred=predict(mBK,newdata=list(DA=x)),x=x,lab="BK")
+
+```
+
+Plot it:
+
+```{r fitmodel2sep,warning=FALSE, message=FALSE, cache = F}
+
+P <- ggplot()+
+geom_line(data=dat,aes(x=DA,y=ND,group=plot),size=0.4,alpha=0.05) +
+geom_line(data=dpredCP,aes(y=pred,x=x,colour=lab),size=1) +
+geom_line(data=dpredLB1,aes(y=pred,x=x,colour=lab),size=1) +
+geom_line(data=dpredLB2,aes(y=pred,x=x,colour=lab),size=1) +
+geom_line(data=dpredCB,aes(y=pred,x=x,colour=lab),size=1) +
+geom_line(data=dpredBK,aes(y=pred,x=x,colour=lab),size=1) +
+coord_cartesian(ylim=c(0,1),xlim=c(0,3650)) +
+#scale_color_manual(values=c("grey60")) +
+labs(x = "days since fire", y = "NDVI") +
+#scale_colour_discrete(guide = FALSE) +
+theme_bw() 
+ 
+suppressWarnings(print(P))
+
+```
+
+
+```{r,purl,eval=FALSE,echo=FALSE,results='hide',messages=F,error=FALSE}
+## this chunk outputs a copy of this script converted to a 'normal' R file with comments
+purl("workflow/3_PostFireTrajectories/PostFireTrajectories.Rmd",
+     documentation=2,output = "workflow/3_PostFireTrajectories/PostFireTrajectories.R", quiet = TRUE) 
+```

@@ -1,0 +1,515 @@
+---
+title: "DataPrep for plot data"
+author: "Jasper Slingsby, Adam M. Wilson and Glenn Moncrieff"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    theme: cerulean
+    keep_md: true  
+---
+
+
+```{r setup1,echo=F,cache=F,results='hide',message=FALSE, warning=FALSE}
+##  Source the setup file
+source("/Users/glennmoncrieff/Documents/Projects/postfire/postfire/workflow/setup.R")
+```
+
+This script assembles various environmental layers into a common 250m grid for the CFR and extracts data for specific plots for which community trait data is available.  It also calculates veg age based on the fire data.
+
+## Index raster
+Import raster of an index grid (`ig`) to spatially connect all the datasets.
+```{r index, warning=FALSE, message=FALSE, cache = F}
+igfile = paste0(datadir,"/clean/indexgrid_modis_250m.grd")
+
+if(!file.exists(igfile)) {
+  
+igraster=raster(nrows=1069,ncols=2362,xmn=243750, xmx=834250, ymn=6183250 , ymx=6450500,crs = "+proj=utm +zone=34 +south +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0", vals=1:2524978)
+
+writeRaster(igraster,igfile)
+}
+ig <- raster(igfile)
+```
+
+
+## traits_plots 
+
+Assemble plot data
+
+```{r veg, warning=FALSE, message=FALSE, cache = F}
+
+traitraw = read.csv(paste0(datadir,"raw/Traits_plots/Comm_Plot_Lat_Lon_Coords.csv"),stringsAsFactors=FALSE)
+climraw = read.csv(paste0(datadir,"raw/Traits_plots/Comm_Plot_Climate.csv"), stringsAsFactors=FALSE)
+
+sites = c("CP","LB1","LB2","CB","BK","HK")
+
+site_loc = data.frame(traitraw$Longitude,traitraw$Latitude,traitraw$Site,traitraw$PLOT)
+site_loc = site_loc[complete.cases(site_loc),]
+
+names(site_loc) <- c("Lon","Lat","Site","PLOT")
+
+site_loc = filter(site_loc,Site%in%sites)
+
+site_locsp = SpatialPointsDataFrame(site_loc[,1:2], site_loc[3:4], 
+                proj4string = CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
+                    
+# reproject to the CRS of the modis index grid (UTM 34S)
+site_locsp=spTransform(site_locsp,CRS(proj4string(ig)))
+
+```
+
+## Fire data
+Assemble fire data. Data comes from threee different sources: MODIS, CapeNature, and TMNP.
+```{r fire1, warning=FALSE, message=FALSE, cache = F}
+
+#cape Pen
+######
+ficp=readOGR(dsn=paste0(datadir,"raw/Fire"), layer="TMNP_fires_1962_2016") #Cape Peninsula fires history layers 1962-2016
+
+#format dates
+cpdate=as.Date(ficp@data$STARTDATE,format="%Y%m%d")%>%as.character%>%as.data.frame
+names(cpdate)="Date"
+ficp@data=cpdate
+
+ficp=spTransform(ficp,CRS(proj4string(ig)))
+
+#modis
+#####
+fibk=readOGR(dsn=paste0(datadir,"raw/Fire"), layer="bkloof_fires_clean",stringsAsFactors = F) #baviaanskloof fires history layers 2000-2016 from modis
+
+#format dates
+yorigin = as.Date(paste0(fibk@data$year,"0101"),format="%Y%m%d")
+bkdate = as.Date(as.numeric(fibk@data$burn_day)-1, origin = yorigin) %>% as.character %>% as.data.frame
+names(bkdate)="Date"
+fibk@data=bkdate
+
+#transform
+fibk=spTransform(fibk,CRS(proj4string(ig)))
+
+#CapeNature
+##########
+ficn=readOGR(dsn=paste0(datadir,"raw/Fire"), layer="All_fires_15_16_gw",stringsAsFactors = F) #cape nature fires history layers
+
+#format dates
+cndate=as.Date(ficn@data$Datestart,format="%Y/%m/%d")%>%as.character%>%as.data.frame
+names(cndate)="Date"
+ficn@data=cndate
+
+ficn=spTransform(ficn,CRS(proj4string(ig)))
+
+#####
+#combine
+
+ficn <- spChFIDs(ficn, paste("CapeNature", row.names(ficn), sep="."))
+ficp <- spChFIDs(ficp, paste("TMNP", row.names(ficp), sep="."))
+fibk <- spChFIDs(fibk, paste("MODIS", row.names(fibk), sep="."))
+fi=rbind(ficn,ficp,fibk)
+fi=fi[!is.na(fi$Date),]
+```
+
+
+### Rasterize fire data into annual fire maps 
+```{r fire2, warning=FALSE, message=FALSE, cache = F}
+
+## Set up a "Days since 1 January 1927" column on the fire polygons
+sdate=fi$Date #get the unique list of years in which fires occurred
+sdate=as.numeric(as.Date(as.character(sdate), format="%Y-%m-%d")-as.Date("1927-01-01", format="%Y-%m-%d"))
+fi$Day=sdate
+sdate=sort(unique(sdate))
+
+
+#############
+
+#if we want to aviod rasterization:
+rdf_sp=over(site_locsp,fi,returnList = TRUE)
+
+```
+
+```{r fire3, eval=FALSE, echo=FALSE, include=FALSE}
+#otherwise
+fir=unionSpatialPolygons(fi,fi$Day,avoidGEOS=T) #merge polygons by day
+fir=SpatialPolygonsDataFrame(fir, data.frame(names(fir), row.names = names(fir)))
+
+fid=SpatialPoints(coordinates(site_locsp), proj4string=CRS(proj4string(ig)))
+
+x=fid %over% fir
+
+fid=cbind(as.data.frame(site_locsp), x)
+#############
+
+
+## Rasterize each fire event
+# first check if file already exists, if not, run this
+rdffile="data/fires_day_modis_250m"
+if(!file.exists(paste(rdffile,sdate[1],".tif",sep=""))) {
+  rdf=foreach(y=sdate,.packages="raster") %dopar% {
+    #loop through fires making a raster of burnt cells with day of year since for each
+    ## if there is >0 fires, then rasterize it to the grid
+    if(sum(fi$Day==y)>0)
+      rasterize(fi[which(fi$Day==y),],ig, field="Day", fun="last", background=0, file=paste(rdffile,y,".tif",sep=""), dataType="INT2S") 
+    ## return the year
+    return(y)
+  }
+}
+
+rdf=stack(paste("data/", list.files("data", pattern="fires_day_modis_250m"), sep=""))
+
+####run this sometime
+# ## Get the stack of fires
+# 
+# #sudo sysctl -w kern.maxfiles=24576
+# if(exists("rdf"))
+#   {
+#   rdf=stack(paste("data/", list.files("data", pattern="fires_day_modis_250m"), sep=""))
+#   writeRaster(rdf, file="data/firedaysAll.tif")
+#   }
+# #sudo sysctl -w kern.maxfiles=12288
+# 
+# rdf=stack("data/firedaysAll.tif")
+
+```
+
+
+### Calculate veg age from fire history
+Now we have an object `rdf` (rasterized fires) with one band/layer for each fire with 0s and the number of days since 1 January 1927 indicating whether that pixel burned in that fire. We can use that to calculate the time since fire for each modis scene by subtracting each raster from each date and taking the minimum positive value for each cell across all rasters. Unburnt cells are given the same age (number of days since 1927-01-01) as the scene.
+
+
+Here is the method to do it without rasterizing fires:
+
+```{r fireages, warning=FALSE, message=FALSE, cache = F}
+
+## Get the vector of modis tile dates
+tdate_mod=read.csv(paste(datadir,"raw/NDVI/MOD_dates.csv", sep=""), header=F, stringsAsFactors=F)
+tdate=as.numeric(as.Date(tdate_mod[,1]) - as.Date("19270101", format="%Y%m%d"))
+
+#function to calculate age of each site for a given day
+fage_sp=function(x, z)
+  {
+  y=NA
+  if(nrow(z)>0){
+   if(min(z)<=x){  
+      y=x-z
+      y=min(y[y>=0],na.rm=T)
+   }
+  }
+  return(y)
+}
+
+#function to calculate age of a site all modis days
+agesite=function(x,k,y) {
+  #get fire days
+  firesday=y[[x]][2]
+  #get age for all days
+  age=sapply(k,fage_sp,z=firesday)
+  return(age)
+}
+
+fffile="data/fire_age_sp.Rdata"
+if(!file.exists(fffile)) {
+
+#run for each site in paralell
+tseq=1:nrow(site_loc)
+parsites <- foreach(site=1:nrow(site_loc),.combine=cbind)
+fdate <- parsites %dopar% agesite(site,tdate,rdf_sp)
+fdate <- t(fdate)%>%as.data.frame
+names(fdate) <-  paste0("DAT_",format(as.Date(tdate_mod[,1], format="%Y-%m-%d"), "%Y%m.%d"))
+
+save(fdate,file=fffile)
+}
+load(fffile)
+```
+
+```{r fireages_ras, eval=FALSE, echo=FALSE, include=FALSE}
+######
+
+#Here is the method to do it by rasterizing fires first:
+
+fage=function(x, date)
+  {
+  y=date-x
+  y=min(y[y>0],na.rm=T)
+  if(y==date){y=NA}
+  return(y)
+  }
+
+x=as.vector(rdf[551072])
+x
+fage(x, 17022)
+max(x)
+
+####
+## Get the vector of modis tile dates
+tdate=read.csv(paste(datadir,"/raw/NDVI/MOD_dates.csv", sep=""), header=T, stringsAsFactors=F)
+tdate=as.numeric(as.Date(tdate[,1]) - as.Date("19270101", format="%Y%m%d"))
+#sudo sysctl -w kern.maxfiles=24576
+
+## Calculate the age of each pixel at each modis tile date
+tfile="data/tile_age_modis_250m"
+if(!file.exists(paste(tfile,tdate[1],".tif",sep=""))) {
+  foreach(z=tdate,.packages="raster") %dopar% {
+  #calc(rdf, fun=fage, date=z, file=paste(tfile,z,".tif",sep=""), dataType="INT2S")
+  calc(rdf, fun=function(x, date=z){y=date-x; y=min(y[y>0],na.rm=T); if(y==date){y=NA}; return(y)}, file=paste(tfile,z,".tif",sep=""), dataType="INT2S")
+  return(z)
+  }
+}
+
+##
+
+tdt=stack(paste("data/", list.files("data", pattern="tile_age_modis_250"), sep=""))
+
+#sudo sysctl -w kern.maxfiles=12288
+
+#agefile="data/ages_annual_landsat_30m.tif"
+#if(!file.exists(agefile))
+#    age=calc(rfi,fage,file=agefile,progress='text',dataType="INT1S")
+#age=stack(agefile)
+#names(age)=paste0("age_",years)
+#age=setZ(age,years)
+```
+
+## NDVI Compositing
+
+```{r fgetndvi, warning=FALSE, message=FALSE, cache = F}
+getNDVI=function(file,datefile,prefix){
+  ndvi=stack(paste0(datadir,"raw/NDVI/",file))
+  NAvalue(ndvi)=-3000
+offs(ndvi)=0
+gain(ndvi)=.0001
+dates=as.Date(read.csv(paste0(datadir,"raw/NDVI/",datefile),header=F)[,1])
+names(ndvi)=paste0(prefix,sub("-","",dates))
+ndvi=setZ(ndvi,dates)
+}
+
+getQA=function(file,datefile,prefix){
+  ndvi=stack(paste0(datadir,"raw/NDVI/",file))
+  NAvalue(ndvi)=-1
+offs(ndvi)=0
+gain(ndvi)=1
+dates=as.Date(read.csv(paste0(datadir,"raw/NDVI/",datefile),header=F)[,1])
+names(ndvi)=paste0(prefix,sub("-","",dates))
+ndvi=setZ(ndvi,dates)
+}
+```
+
+Now use the function to read in the data and add the relevant metadata.
+```{r loadmodis, warning=FALSE, message=FALSE, cache = F}
+mNDVI=getNDVI(file="2016096_MODIS_v1g_DIM_MOD_NDVI.tif",
+           datefile="MOD_dates.csv",prefix="NDVI_")
+mEVI=getNDVI(file="2016096_MODIS_v1g_DIM_MOD_EVI.tif",
+           datefile="MOD_dates.csv",prefix="EVI_")
+mQ=getQA(file="2016096_MODIS_v1g_DIM_MOD_SummaryQA.tif",
+           datefile="MOD_dates.csv",prefix="QA_")
+```
+
+Let's check out one of the MODIS objects.  Raster provides a summary by just typing the object's name:
+```{r}
+mNDVI
+```
+
+We have NDVI, EVI and a data quality index (QA). 
+There are several ways these data could be combined.  
+Today, we'll simply combine (stack) all the available observations for each pixel.  
+
+```{r ndviprocess, warning=FALSE, message=FALSE, cache = F}
+tl=melt(list(mN=getZ(mNDVI),mE=getZ(mEVI),mQ=getZ(mQ)))
+ndates=unique(tl$value)
+## write that to disk for later use
+write.table(ndates,file="data/ndates.csv",row.names=F,col.names=F,sep=",")
+
+### concatenate all sensors to a single raster stack (this just links the filenames)
+undvi=stack(mNDVI,mEVI,mQ)
+undvi=setZ(undvi,c(getZ(mNDVI),getZ(mEVI),getZ(mQ)))
+### Sort them by date (z)
+ndvi=undvi[[order(getZ(undvi))]]
+
+ndvifile="data/ndvi_dim_mod.Rdata"
+if(!file.exists(ndvifile)){
+save(ndvi,file="ndvi_dim_mod.Rdata")
+# ## create a new ndvi layer
+# ndvifile="data/ndvi_landsat_30m.tif"
+# if(!file.exists(ndvifile)){
+# writeRaster(ndvi,filename=ndvifile)
+# }
+# ## load it
+# ndvi=raster(ndvifile)
+  
+}
+load(ndvifile)
+```
+
+
+# Data Compilation
+## load spatial data masking
+
+Here we select the subset of cells that we will explore further.  In this case it is the plot for which we have trait data. You can fiddle with these settings to include fewer (or more) cells.  If your computer is slow, you may want to subset this further. Then we use these plot location to extract environemtal data, and finally join these data with the data for plot-level trait means.
+
+
+```{r sdat,results='asis', warning=FALSE, message=FALSE, cache = F}
+
+#join climate data
+climdat=read.csv(paste0(datadir,"raw/Traits_plots/Comm_Plot_Climate.csv"), stringsAsFactors=FALSE)
+tempdat=site_locsp@data
+tempdat$plot_smpl=paste0(tempdat$Site,"_",tempdat$PLOT)
+tempdat=left_join(tempdat,climdat,by="plot_smpl")
+site_locsp@data=tempdat
+
+## load data for masking	
+mask=ig
+maskids=raster::extract(mask,site_locsp,cellnumbers=TRUE)
+site_locsp=raster::extract(mask,site_locsp,cellnumbers=TRUE,sp=T)
+maskids=maskids[,1]
+maskdata = cbind(seq(1:length(maskids)),site_locsp@data[,1:3],maskids)
+names(maskdata)=c("plot","site","plot_num","plot_long","maskid")
+
+##load spatial data
+#adam data for soil and veg
+adam <- stack(paste0(datadir, "clean/adam_data.grd"))
+
+#glenn data for schultze climate
+glenn <- stack(paste0(datadir, "clean/schultze.grd"))
+names(glenn) <- c("map","mmp1","mmp7","pcv","apan","tmax01","tmin07")
+
+#load radiation data
+raddec21 <- raster(paste0(datadir, "clean/rad_21dec.grd"))
+radjun21 <- raster(paste0(datadir, "clean/rad_21jun.grd"))
+rad <- stack(raddec21,radjun21)
+
+#load traits data
+trait_cwm <- read.csv(file=paste0(datadir, "clean/traits_cwm.csv"))
+
+#load landsat cv data
+avcov <- read.csv(file=paste0(datadir, "clean/LE7_avcov.csv"))
+
+### Make a dataframe of all spatial data
+## Beware, this approach will only work if your data are all in identical projection/grid/etc.
+
+#extract spatial data
+sdatwd="data/sdat_moddim.Rdata"	
+
+if(!file.exists(sdatwd)){	
+#temporally invariant data              
+sdat=data.frame(
+  id=raster::extract(ig, maskids),
+  coordinates(ig)[maskids,],
+  raster::extract(adam, maskids),
+  raster::extract(glenn, maskids),
+  raster::extract(rad, maskids)
+)
+
+sdat<-cbind(sdat,site_locsp@data[,1:7])
+sdat$plot=1:nrow(sdat)
+sdat <- left_join(sdat,trait_cwm,by = c("plot_smpl" = "PlotSite"))
+sdat <- left_join(sdat,avcov,by = c("plot" = "PLOT"))
+
+save(sdat,file=sdatwd)	
+}	
+
+load(sdatwd)	
+```
+
+## Reshape temporal data
+It's often easier to work with data in 'long' format where there is one row for each observation and another column indicating what the observation is.  Let's `melt` the data to 'long' format.
+```{r tdatl,results='asis', warning=FALSE, message=FALSE, cache = F}
+#add IDs to fireage data frame
+fdate <- cbind(maskids,fdate)
+
+#extract ndvi dat
+ftdatw="data/tdatw_moddim.Rdata"	
+if(!file.exists(ftdatw)){	
+  	
+tdatw=data.frame(	
+  id=raster::extract(ig, maskids),
+  raster::extract(ndvi,maskids),
+  fdate
+  )	
+
+save(tdatw,file=ftdatw)	
+}	
+
+load(ftdatw)	
+#tdatw[1:10,1:10]
+
+#we have some plots in the same pixel (same maskid)
+#df with ids and maskids
+idplot=data.frame(plot=1:nrow(tdatw),maskid=tdatw$id)
+#list the duplicate pixels:
+idcount=as.data.frame(table(tdatw$id))
+idup=filter(idcount,Freq>1)
+pdup=filter(idplot,maskid%in%idup$Var1)
+
+#create data table
+#listed by plots, no maskids
+tdatw$plot=1:nrow(tdatw)
+tdatw=select(tdatw,-id)
+tdatl=melt(tdatw,id.var="plot")%>%filter(variable!="maskids")
+tdatl$variable=as.character(tdatl$variable)%>%as.factor
+tdatln=cbind.data.frame(lab=levels(tdatl$variable),
+                     do.call(rbind,strsplit(as.character(levels(tdatl$variable)),"_")))
+tdatln$type=ifelse(tdatln[,"1"]%in%c("NDVI","EVI","QA"),"modis","age")
+
+tdatl[,c("type","date")]=tdatln[match(tdatl$variable,tdatln$lab),4:3]
+tdatl$miss=paste(substr(as.character(tdatl$variable), 1, 2))
+
+#bugger we have some pixels with multiple plots...
+#for now...just drop those plots/pixels
+# idcount=as.data.frame(table(maskids))
+# iddup=filter(idcount,Freq==1)
+# tdatld=filter(tdatl,id %in% iddup$maskids)
+
+tdats=select(tdatl,-c(variable,type))
+tdat=spread(tdats,miss,value)
+tdat=left_join(tdat,maskdata,by="plot")
+
+#tdat=dcast(tdatld,id+date~miss,value.var="value")
+## convert date to proper format
+n = 5 #where to insert separator
+
+tdat$date=paste(substr(as.character(tdat$date), 1, 5-1), ".", substr(as.character(tdat$date), n, nchar(as.character(tdat$date))), sep = "")
+## convert year from a factor to numeric
+tdat$date=as.Date(as.character(tdat$date),"%Y.%m.%d")
+
+kable(head(tdat))
+
+```
+
+Save it as an R data object for later use.
+```{r save}
+## drop the 'wide' version
+save(sdat,tdat,file="data/modeldata_dim.Rdata")
+```
+
+Some of our fires are incorrectly dated. We are only able to correct this after inspecting the data. Run this code chunk to fix this problem:
+```{r fixfires, eval=FALSE}
+## drop the 'wide' version
+source("workflow/other/fire_dates.R")
+```
+
+##Inspect the data
+
+Lets look at the data frame, and then plot some fire recovery curves
+```{r plot, fig.width=8, fig.height=8, warning=FALSE, message=FALSE, cache = F}
+## drop the 'wide' version
+plotdat <- left_join(tdat,sdat,by="plot")
+
+plotsites <- c("CP","LB1","LB2","CB","BK")
+plotdat_temp <- filter(plotdat,Site.y%in%plotsites)%>%
+                filter(QA==0)%>%filter(ND>0) %>%filter(complete.cases(.))
+
+#look at the data
+glimpse(plotdat_temp)
+
+P <- ggplot(plotdat_temp,aes(x=DA, y=ND,color=Site.y,group=plot)) +
+geom_line(size=0.05) +
+coord_cartesian(ylim=c(0,1),xlim=c(0,3650)) +
+#scale_color_manual(values=c("grey60")) +
+facet_wrap( ~ region, ncol=2) +
+theme_bw() 
+ 
+suppressWarnings(print(P))
+```
+
+```{r,echo=FALSE,eval=FALSE,results='hide',messages=FALSE,error=FALSE}
+## this chunk outputs a copy of this script converted to a 'normal' R file with all the text and chunk information commented out
+purl("workflow/1_Data/DataPrepFullRecord_plots.Rmd",documentation=2,output="workflow/1_Data/DataPrepFullRecord_plots.R", quiet = TRUE)
+```
+
