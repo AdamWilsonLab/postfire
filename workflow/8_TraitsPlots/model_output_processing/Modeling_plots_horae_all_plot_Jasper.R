@@ -55,7 +55,7 @@ ig=raster(paste0(datadir,"clean/indexgrid_modis_250m.grd"))
       allenv <- left_join(envdat,sdat,by="id") #create moster spatial data to look up plot details (eg lat, lon, original name)
     
     #select a variable
-      plotx <- envdat$max_height_cm
+      plotx <- envdat$LMA
     
     #lambda
    #####
@@ -99,9 +99,19 @@ covs[,1:8] <- sapply(covs[,1:8], function(x){(x-mean(x))/var(x)})
 #GGally::ggpairs(covs[,1:8])
 GGally::ggpairs(covs, ggplot2::aes(colour=Site))
 
+summary(lm(LMA ~ wdef + tmin07 + slope + rad_jun + pcv, data = covs))
+summary(lm(resprout ~ wdef + tmin07 + slope + rad_jun + pcv, data = covs))
+summary(lm(ln_height ~ wdef + tmin07 + slope + rad_jun + pcv, data = covs))
+
+
 all <- cbind(confint.g$mid, confint.l$mid,covs)
 colnames(all)[1:2] <- c("gamma", "lambda")
+
 GGally::ggpairs(all, ggplot2::aes(colour=Site))
+
+summary(lm(lambda ~ wdef + tmin07 + slope + rad_jun + pcv + ln_height + LMA + resprout, data = all))
+
+summary(lm(gamma ~ wdef + tmin07 + slope + rad_jun + pcv + ln_height + LMA + resprout, data = all))
 
 picante::cor.table(all[,1:10])
 

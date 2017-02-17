@@ -1,0 +1,297 @@
+---
+title: "Postfire regeneration and traits - Fynbos"
+output: html_notebook
+---
+
+Thoughts:
+Relevance for development of trait-based DVMs?
+
+"Kill thy neighbour" maintenance of Fynbos Biome?
+
+Fynbos maintained by differing "response-type" (i.e. similar (closely-related) spp can survive across huge variation in climate), but common "effect-type" (i.e. create similar community processes/function, esp. low-nutrient environment and fire). Allows FB to transcend MT climate? (see Bhasker, Valiente- and Ackerly 2007? - species specific drought responses)
+
+Lack of trait-environment correlations implies that the functional composition of communities is determined by factors other than the abiotic environment, suggesting potential for alternative stable states. We see this in the coexistence of Fynbos and Forest. Succulent Karoo and Fynbos?
+
+Fire in aseasonal environments (i.e. SE Cape) maintained by massive year to year climatic variability. (see Keeley et al. 2012)
+Keeley suggests that it took the development of a Med T Climate for vegetation fuel properties to be connected enough to carry large fires (see Pausas and Keeley 2014). Perhaps SE Cape gained greater connectedness under more MT Climate? Or because it didn't have a temperate tree flora to compete with?
+
+[Keeley, Parker and ... 2017 - Seeder vs sprouter in Arctostaphylis - linked to seasonality?]
+
+Roberts et al (in press) Global and Planetary Change - Langebaanweg record - Rainforest, Fynbos and Miombo!?
+
+###
+Side thought - compare fuel properties of Fynbos and interdigitated veg?
+###
+
+Let's look at the model coefficients.
+
+```{r, echo = F}
+load("/Users/jasper/Dropbox/Shared/glenn/postfire_results/coeffients_model/v3fin/v3fin_modeloutput.Rdata")
+
+load("/Users/jasper/Dropbox/Shared/glenn/postfire_results/all_plots/clim_traits/clim_traits_allplots_in.Rdata")
+
+## Potentially thin the data
+mc2=window(mc,thin=5,start=1)
+
+### Extract regression coefficients
+mc_reg=mc2[,grep("gamma[.]|lambda[.]",colnames(mc[[1]]))]
+
+#v2 = list(name="v2fin",vars=c("wdef","pcv","tmin07","radtot_21jun","slope"))
+v3 = list(name="v3fin",vars=c("wdef","pcv","tmin07","radtot_21jun","slope","LMA","resprout_postfire","max_height_cm"))
+#v4 = list(name="v4fin",vars=c("LMA","resprout_postfire","max_height_cm"))
+
+confint <- as.data.frame(summary(mc_reg)[[2]])
+rownames(confint) <- c("intercept.gamma",paste(v3$vars,"gamma",sep="."),"gamma.sigma","intercept.lambda",paste(v3$vars,"lambda",sep="."),"lambda.sigma")
+names(confint) <- c("min","lower","mid","upper","max")
+confint$names <- rownames(confint)
+drop <- c("intercept.gamma","intercept.lambda","gamma.sigma","lambda.sigma")
+confintsmall <- filter(confint,!(names %in% drop)) #confint[-which(confint$names %in% drop),]
+
+confintsmallgamma <- confintsmall[1:8,]
+confintsmallgamma$names <- factor(c("Water_Balance", "Precip_CV", "MinT", "Winter_Radiation", "Slope", "LMA", "Resprouter_Fraction", "Max_Height"), levels = rev(c("Water_Balance", "Precip_CV", "MinT", "Winter_Radiation", "Slope", "LMA", "Resprouter_Fraction", "Max_Height")))
+confintsmalllambda <- confintsmall[9:16,]
+confintsmalllambda$names <- factor(c("Water_Balance", "Precip_CV", "MinT", "Winter_Radiation", "Slope", "LMA", "Resprouter_Fraction", "Max_Height"), levels = rev(c("Water_Balance", "Precip_CV", "MinT", "Winter_Radiation", "Slope", "LMA", "Resprouter_Fraction", "Max_Height")))
+
+
+confintall <- data.frame(rbind(confintsmalllambda, confintsmallgamma), Parameter = c(rep("1/Recovery Rate", 8), rep("Potential maximum NDVI", 8)))
+
+#results.dic <- capture.output(print(dc))
+
+#plot lambdas and gammas together
+Pa <-  ggplot(confintall,aes(names)) +
+  geom_boxplot(aes(ymin=min,lower=lower,middle=mid,upper=upper,ymax=max),stat="identity") +
+  geom_hline(yintercept = 0,linetype=2) +
+  coord_flip() +
+  theme(plot.title = element_text(size = 20, face = "bold")) + 
+  theme_bw(base_size = 18) + 
+  labs(title = " ", x = " ", y = " ") +
+  facet_grid(. ~ Parameter, scales="free_x")
+
+#pdf("/Users/jasper/Dropbox/SAEON/Conferences/MEDECOS/postfirepics/allvars_all.pdf", height = 5, width = 8)
+Pa
+#dev.off()
+
+ #plot lambdas only
+Pl <-  ggplot(confintsmalllambda,aes(names)) +
+  geom_boxplot(aes(ymin=min,lower=lower,middle=mid,upper=upper,ymax=max),stat="identity") +
+  geom_hline(yintercept = 0,linetype=2) +
+  coord_flip() +
+  theme(plot.title = element_text(size = 20, face = "bold")) + 
+  theme_bw(base_size = 18) + 
+  labs(title = "1/Recovery Rate", x = " ", y = " ")
+
+#pdf("/Users/jasper/Dropbox/SAEON/Conferences/MEDECOS/postfirepics/allvars_lambdas.pdf", height = 6, width = 6)
+#Pl
+#dev.off()
+
+#plot gammas only
+Pg <-  ggplot(confintsmallgamma,aes(names)) +
+  geom_boxplot(aes(ymin=min,lower=lower,middle=mid,upper=upper,ymax=max),stat="identity") +
+  geom_hline(yintercept = 0,linetype=2) +
+  coord_flip() +
+  theme(plot.title = element_text(size = 20, face = "bold")) + 
+  theme_bw(base_size = 18) + 
+  labs(title = "Potential maximum NDVI", x = " ", y = " ")
+
+#pdf("/Users/jasper/Dropbox/SAEON/Conferences/MEDECOS/postfirepics/allvars_gammas.pdf", height = 6, width = 6)
+#Pg
+#dev.off()
+```
+
+Let's look at relationships among traits and climate vars
+
+```{r, echo = F}
+###Explore relationships among traits and climate vars
+
+envdat <- as.data.frame(data$env) #all environemtal data
+envdat$id <- as.numeric(rownames(envdat))
+allenv <- left_join(envdat,sdat,by="id") #create moster spatial data to look up plot details (eg lat, lon, original name)
+
+      
+covs <- allenv[,which(names(allenv) %in% c("Site.y", "wdef.y", "pcv.y", "tmin07.y", "radtot_21jun.y", "slope.y", "LMA.y", "resprout_postfire.y", "max_height_cm.y"))]
+
+covs$max_height_cm.y <- log(covs$max_height_cm.y)
+
+colnames(covs) <- c("slope", "pcv", "tmin07", "rad_jun", "resprout", "ln_height", "LMA", "Site", "wdef")
+
+covs <- covs[,c("wdef", "tmin07", "slope", "rad_jun", "pcv", "resprout", "ln_height", "LMA", "Site")]
+
+covs[,1:8] <- sapply(covs[,1:8], function(x){(x-mean(x))/var(x)})
+
+all <- cbind(confint.g$mid, confint.s$mid,covs)
+colnames(all)[1:2] <- c("gamma", "lambda")
+
+GGally::ggpairs(all, ggplot2::aes(colour=Site))
+
+#Traits
+summary(lm(LMA ~ wdef + tmin07 + slope + rad_jun + pcv, data = covs))
+summary(lm(resprout ~ wdef + tmin07 + slope + rad_jun + pcv, data = covs))
+summary(lm(ln_height ~ wdef + tmin07 + slope + rad_jun + pcv, data = covs))
+
+#Recovery parameters
+summary(lm(lambda ~ wdef + tmin07 + slope + rad_jun + pcv + ln_height + LMA + resprout, data = all))
+summary(lm(gamma ~ wdef + tmin07 + slope + rad_jun + pcv + ln_height + LMA + resprout, data = all))
+```
+
+
+```{r}
+loc <- read.csv("/Users/jasper/Dropbox/Shared/postfire_workshop/data/clean/plotloc.csv")
+spp <- read.csv("/Users/jasper/Dropbox/Shared/postfire_workshop/data/clean/plotspp.csv")
+tr <- read.csv("/Users/jasper/Dropbox/Shared/postfire_workshop/data/clean/plottr.csv")
+
+#sapply(allT, function(x){sum(is.na(x))})
+
+
+#################################
+###Analyse species trait trade-offs script?
+#source()
+
+#trim allT to families of interest
+fams = c("ASTERACEAE", "CYPERACEAE", "ERICACEAE", "FABACEAE", "IRIDACEAE", "POACEAE", "PROTEACEAE", "RESTIONACEAE", "RUTACEAE", "SCROPHULARIACEAE") #, "AIZOACEAE", "ORCHIDACEAE"
+
+fallT = allT[which(allT$family_POSA%in%fams),]
+
+fallT$family_POSA = substr(fallT$family_POSA, 1, 3)
+summary(as.factor(fallT$family_POSA))
+
+###HIST OF # OF FAMILIES REPRESENTED IN EACH PLOT?
+##Set up family community matrix (Excluding some spp)
+#Exclude forest, thicket, riparian or alien invaded sites
+excludes=c("Acacia cyclops", "Acacia mearnsii", "Acacia saligna", "Acalypha glabrata",
+           "Allophylus decipiens", "Alsophila capensis", "Apodytes dimidiata",
+           "Atalaya capensis", "Boscia oleoides", "Brabejum stellatifolium", "Brachylaena neriifolia",
+           "Buddleja saligna", "Cassine peragua", "Cassine schinoides", "Celtis africana", "Cunonia capensis",
+           "Curtisia dentata", "Cussonia spicata", "Cussonia thyrsiflora", "Diospyros scabrida", "Diospyros whyteana",
+           "Ehretia rigida", "Euclea natalensis", "Euclea schimperi", "Euphorbia grandidens",
+           "Grewia occidentalis", "Hakea sericea", "Halleria lucida", "Hippobromus pauciflorus",
+           "Ilex mitis", "Loxostylis alata", "Maytenus acuminata", "Maytenus undata",
+           "Metrosideros angustifolia", "Ochna serrulata", "Ocotea bullata",  "Olinia ventosa", 
+           "Pappea capensis", "Pittosporum viridiflorum", "Platylophus trifoliatus", 
+           "Podocarpus elongatus", "Podocarpus latifolius", "Portulacaria afra", 
+           "Rapanea melanophloeos", "Robsonodendron maritimum", "Salix mucronata", 
+           "Schotia latifolia", "Sideroxylon inerme", "Smelophyllum capense", "Vachellia karroo")     
+
+fspp=fspp[which(fspp$Year<2000 & fspp$Year>1966),] #trim to first surveys only - rethink?
+fsamp <- tapply(rep(1, nrow(fspp)), list(fspp$Plot, fspp$Family), sum)
+fsamp[is.na(fsamp)] <- 0
+fsamp = as.data.frame(fsamp)
+fsamp = fsamp[,which(colnames(fsamp)%in%fams)]
+
+samp <- tapply(rep(1, nrow(fspp)), list(fspp$Plot, fspp$Species), sum)
+samp[is.na(samp)] <- 0
+samp = as.data.frame(samp)
+
+fsamp = fsamp[-which(rowSums(samp[,which(colnames(samp)%in%excludes)])>0),]
+samp = samp[which(rownames(samp)%in%rownames(fsamp)),]
+samp = samp[,which(colSums(samp)>0)]
+
+samp_turnover = designdist(samp, method = "(A+B-2*J)/(A+B)", terms = c("binary"))
+
+pdf("results_temp/species_turnover.pdf", width = 5, height = 4)
+  hist(samp_turnover, main = "", xlab = "Turnover (Sorenson's coefficient)")
+dev.off()
+
+fsamp_turnover = designdist(fsamp, method = "(A+B-2*J)/(A+B)", terms = c("binary"))
+
+pdf("results_temp/family_turnover.pdf", width = 5, height = 4)
+hist(fsamp_turnover, main = "", xlab = "Turnover (Sorenson's coefficient)")
+dev.off()
+
+pdf("results_temp/number_of_families_per_plot.pdf", width = 5, height = 4)
+  hist(rowSums(decostand(fsamp, "pa")), main="", xlab = "Number of Families")
+dev.off()
+  
+pdf("results_temp/prevalence_of_families_per_plot.pdf", width = 5, height = 4)
+hist(rowSums(fsamp), main="", xlab = "Number of species in top 10 families")
+dev.off()
+
+pdf("results_temp/family_traits.pdf", width = 10, height = 5)
+grid.arrange(
+ggplot(fallT, aes(x = c(SLA))) + geom_density() + facet_grid(family_POSA ~ .) + xlim(0, 200) + xlab("SLA"),
+ggplot(fallT, aes(x = c(log(LeafLength_cm)))) + geom_density() + facet_grid(family_POSA ~ .) + xlab("log(Leaf Length)"), # + xlim(0, 250)
+#ggplot(fallT, aes(x = c(LMA))) + geom_density() + facet_grid(family_POSA ~ .), # + xlim(0, 250),
+ggplot(fallT, aes(x = c(log(Height_cm)))) + geom_density() + facet_grid(family_POSA ~ .) + xlab("log(Height)"), # + xlim(0, 250),
+ggplot(fallT, aes(x = c(log(CanopyArea)))) + geom_density() + facet_grid(family_POSA ~ .) + xlab("log(Canopy Area)"), # + xlim(0, 250), 
+ncol=4)
+dev.off()
+
+summary(aov(SLA ~ family_POSA, data = fallT))
+summary(aov(log(LeafLength_cm) ~ family_POSA, data = fallT))
+summary(aov(log(Height_cm) ~ family_POSA, data = fallT))
+summary(aov(log(CanopyArea) ~ family_POSA, data = fallT))
+
+
+#Make the species matrix sample format and bind to traits
+lsamp = matrix2sample(samp)
+colnames(lsamp)[3] = "finalname"
+allTs = allT[,c(1,which(colnames(allT)%in%c("SLA", "LeafLength_cm", "Height_cm", "CanopyArea")))]
+allTs$Height_cm = log(allTs$Height_cm)
+allTs$LeafLength_cm = log(allTs$LeafLength_cm)
+allTs$CanopyArea = log(allTs$CanopyArea)
+allT_samp = merge(lsamp, allTs)
+
+
+sumstats = data.frame(Range = aggregate(allT_samp[, 4:ncol(allT_samp)], by = list(allT_samp$plot), FUN = "range", na.rm = T),
+Maximum = aggregate(allT_samp[, 4:ncol(allT_samp)], by = list(allT_samp$plot), FUN = "max", na.rm = T),
+Minimum = aggregate(allT_samp[, 4:ncol(allT_samp)], by = list(allT_samp$plot), FUN = "min", na.rm = T),
+Mean = aggregate(allT_samp[, 4:ncol(allT_samp)], by = list(allT_samp$plot), FUN = "mean", na.rm = T),
+StDev = aggregate(allT_samp[, 4:ncol(allT_samp)], by = list(allT_samp$plot), FUN = "sd", na.rm = T),
+Interquartile = (aggregate(allT_samp[, 4:ncol(allT_samp)], by = list(allT_samp$plot), FUN = "quantile", probs = 0.75, na.rm = T) - aggregate(allT_samp[, 4:ncol(allT_samp)], by = list(allT_samp$plot), FUN = "quantile", probs = 0.25, na.rm = T)))
+
+
+pdf("results_temp/trait_CWMs.pdf", width = 10, height = 2)
+grid.arrange(
+  ggplot(sumstats, aes(x = c(Mean.SLA))) + geom_density() + xlim(0, 200) + xlab("SLA"),
+  ggplot(sumstats, aes(x = c(Mean.LeafLength_cm))) + geom_density() + xlab("log(Leaf Length)") + xlim(-2, 5),
+  #ggplot(fallT, aes(x = c(LMA))) + geom_density() + facet_grid(family_POSA ~ .), # + xlim(0, 250),
+  ggplot(sumstats, aes(x = c(Mean.Height_cm))) + geom_density() + xlab("log(Height)") + xlim(0, 7), # + xlim(0, 250),
+  ggplot(sumstats, aes(x = c(Mean.CanopyArea))) + geom_density() + xlab("log(Canopy Area)") + xlim(0, 14), # + xlim(0, 250), 
+  ncol=4)
+dev.off()
+
+pdf("results_temp/trait_CWMs_SLA.pdf", width = 2, height = 1.5)
+  ggplot(sumstats, aes(x = c(Mean.SLA))) + geom_density() + xlim(0, 200) + xlab("SLA")
+dev.off()
+
+rownames(allTs) = allTs$finalname
+sp = na.omit(allTs[,2:ncol(allTs)])
+spsamp = samp[, which(colnames(samp)%in%rownames(sp))]
+spsamp = spsamp[-which(rowSums(spsamp)==0),]
+sp = sp[which(rownames(sp)%in%colnames(spsamp)),]
+
+spsd = sp - sapply(sp, mean)/sapply(sp, sd)
+dudisp = dudi.pca(spsd)
+spdist = dist(dudisp$li)
+tree = as.phylo(hclust(spdist))
+
+#sesFD analysis
+sesfd_is = ses.pd(spsamp, tree, null.model = "independentswap", runs = 499, iterations = 500)
+sesfd_tl = ses.pd(spsamp, tree, null.model = "taxa.labels", runs = 499, iterations = 500)
+
+pdf("results_temp/trait_FD_dispersion.pdf", width = 8, height = 5)
+par(mfrow=c(1,2))
+plot(tree, show.tip.label = F)
+hist(sesfd_is$pd.obs.p, main = "", xlab = "P-value")
+dev.off()
+
+###OMI analysis?
+dudi1 <- dudi.pca(sp, scale = TRUE, scan = FALSE, nf = 3)
+nic1 <- niche(dudi1, as.data.frame(t(spsamp)), scann = FALSE)
+par(mfrow = c(2, 2))
+s.traject(dudi1$li, clab = 0)
+s.traject(nic1$ls, clab = 0)
+s.corcircle(nic1$as)
+s.arrow(nic1$c1)
+
+par(mfrow=c(1,1))
+s.distri(nic1$ls, as.data.frame(as.data.frame(t(spsamp))[,1]),
+         csub = 2, sub = names(as.data.frame(t(spsamp)))[1])
+for (i in 2:848) s.distri(nic1$ls, as.data.frame(as.data.frame(t(spsamp))[,i]),
+                         csub = 2, sub = names(as.data.frame(t(spsamp)))[i], add.plot = T)
+
+plot(nic1)
+niche.param(nic1)
+y = rtest(nic1, 499)
+
+```
+

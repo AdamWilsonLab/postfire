@@ -44,12 +44,13 @@ if (Sys.getenv("USER")=='adamw') {
   
 Sys.getenv()
 if (Sys.getenv("USER")=='jasper') {
-  setwd("/Users/jasper/GIT/Postfire") 
+  setwd("/Users/jasper/GIT/Postfire_trajectories") 
   ## path to shared Dropbox folder that has the source data
   ## Never write anythiing to this folder!
   datadir="/Users/jasper/Dropbox/Shared/Postfire_workshop/data/"
   ## bath to GRASS executables
   gisbase="/Users/jasper/Grassdata"
+  glenndir="/Users/jasper/Dropbox/Shared/glenn/postfire_results/all_plots/"
   ## Machine details
   ncores=3   # the number of cores you want to use for parallel processing
 }  
